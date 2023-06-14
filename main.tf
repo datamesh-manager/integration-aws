@@ -1,3 +1,7 @@
+variable "process_feed_version" {
+  type = string
+}
+
 variable "aws" {
   type = object({
     region     = string
@@ -6,7 +10,6 @@ variable "aws" {
   })
   sensitive = true
 }
-
 
 terraform {
   required_providers {
@@ -42,7 +45,7 @@ resource "aws_iam_role" "iam_for_lambda" {
 }
 
 resource "aws_lambda_function" "process_feed_lambda_function" {
-  filename      = "${path.module}/out/process_feed/process_feed.zip"
+  filename      = "${path.module}/out/process_feed_${var.process_feed_version}.zip"
   function_name = "permissions__process_feed"
   role          = aws_iam_role.iam_for_lambda.arn
   handler       = "process_feed.lambda_handler"
