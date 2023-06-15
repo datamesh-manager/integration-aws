@@ -4,9 +4,10 @@ if [ -z "$1" ]
 then
   echo "Please set version!"
   exit 0
-else
-  VERSION=$1
 fi
+
+VERSION=$1
+WORKING_DIRECTORY=$(pwd)
 
 function build_src {
     local name=$1
@@ -23,6 +24,10 @@ function build_src {
     pip install --upgrade -r requirements.txt --target .
     zip -rqu "$result" .
     mv "$result" ../
+
+    cd "$WORKING_DIRECTORY" || exit 1
 }
 
 build_src "process_feed"
+
+terraform apply -var='versions={"process_feed":"'"$VERSION"'"}' -auto-approve

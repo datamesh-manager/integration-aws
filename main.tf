@@ -63,7 +63,7 @@ resource "aws_lambda_function" "process_feed_lambda_function" {
   function_name = "permissions__process_feed"
   role          = aws_iam_role.process_feed_iam_role.arn
   handler       = "process_feed.lambda_handler"
-
+  timeout       = 60
   runtime       = "python3.10"
   architectures = ["arm64"]
 }
