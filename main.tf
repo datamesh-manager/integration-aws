@@ -96,3 +96,28 @@ resource "aws_iam_role_policy" "sm_policy" {
     ]
   })
 }
+
+resource "aws_s3_bucket" "permissions_bucket" {
+  bucket        = "dmm-permissions-extension"
+  force_destroy = true
+}
+
+data "aws_iam_policy_document" "process_feed_s3_access" {
+  statement {
+    principals {
+      identifiers = [aws_iam_role.process_feed_iam_role.arn]
+      type        = "AWS"
+    }
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    effect    = "Allow"
+    resources = [
+      aws_s3_bucket.permissions_bucket.arn,
+      "${aws_s3_bucket.permissions_bucket.arn}/*"
+    ]
+  }
+}
+
+resource "aws_s3_bucket_policy" "process_feed_s3_access" {
+  bucket = aws_s3_bucket.permissions_bucket.id
+  policy = data.aws_iam_policy_document.process_feed_s3_access.json
+}
