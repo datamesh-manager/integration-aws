@@ -1,11 +1,14 @@
+import boto3
+from botocore.client import ClientError
 from requests import get, Response
-from boto3.session import Session
 
 
 def lambda_handler(event, context):
-    key = api_key('process_feed_dmm_api_key', 'eu-central-1')
+    key = api_key('process_feed_dmm_api_key')
 
-    last_event_id = None
+    last_event_id = get_last_event_id()
+
+    print(last_event_id)
 
     while True:
         response_elements = get_events(key, last_event_id).json()
@@ -14,10 +17,33 @@ def lambda_handler(event, context):
             break
         else:
             for element in response_elements:
-                print(element)
                 last_event_id = element['id']
+                print(last_event_id)
+                put_last_event_id(last_event_id)
 
     return
+
+
+def get_last_event_id() -> str:
+    try:
+        s3_object = boto3.client('s3').get_object(
+            Bucket='dmm-permissions-extension',
+            Key='process_feed/last_event_id'
+        )
+
+        return s3_object['Body'].read()
+    except ClientError as e:
+        # todo: better check if object exists or other client error occurred
+        print(e.response)
+        return None
+
+
+def put_last_event_id(event_id: str):
+    boto3.client('s3').put_object(
+        Body=event_id,
+        Bucket='dmm-permissions-extension',
+        Key='process_feed/last_event_id'
+    )
 
 
 def get_events(key: str, last_event_id: str) -> Response:
@@ -34,18 +60,13 @@ def get_events(key: str, last_event_id: str) -> Response:
 
 def events_url(last_event_id: str) -> str:
     base_url = 'https://app.datamesh-manager.com/api/events'
+
     return base_url if last_event_id is None \
         else '{url}?lastEventId={id}'.format(url=base_url, id=last_event_id)
 
 
-def api_key(secret_name: str, region_name: str) -> str:
-    session = Session()
-    client = session.client(
-        service_name='secretsmanager',
-        region_name=region_name
-    )
-    get_secret_value_response = client.get_secret_value(
-        SecretId=secret_name
-    )
+def api_key(secret_name: str) -> str:
+    client = boto3.client('secretsmanager')
+    get_secret_value_response = client.get_secret_value(SecretId=secret_name)
 
     return get_secret_value_response['SecretString']
