@@ -35,7 +35,7 @@ provider "aws" {
   secret_key = var.aws.secret_key
 }
 
-data "aws_iam_policy_document" "assume_role" {
+data "aws_iam_policy_document" "process_feed_assume_role" {
   statement {
     effect = "Allow"
 
@@ -50,7 +50,7 @@ data "aws_iam_policy_document" "assume_role" {
 
 resource "aws_iam_role" "process_feed_iam_role" {
   name               = "iam_for_process_feed_lambda"
-  assume_role_policy = data.aws_iam_policy_document.assume_role.json
+  assume_role_policy = data.aws_iam_policy_document.process_feed_assume_role.json
 }
 
 resource "aws_iam_role_policy_attachment" "process_feed_lambda_policy" {
@@ -130,7 +130,7 @@ resource "aws_sqs_queue" "dmm_events_queue" {
   visibility_timeout_seconds  = 60 # six times lambda timeout as stated in aws docs
 }
 
-data "aws_iam_policy_document" "process_feed_sqs_access" {
+data "aws_iam_policy_document" "lambda_sqs_access" {
   statement {
     principals {
       identifiers = [aws_iam_role.process_feed_iam_role.arn]
@@ -140,15 +140,25 @@ data "aws_iam_policy_document" "process_feed_sqs_access" {
     effect    = "Allow"
     resources = [aws_sqs_queue.dmm_events_queue.arn]
   }
+
+  statement {
+    principals {
+      identifiers = [aws_iam_role.process_events_iam_role.arn]
+      type        = "AWS"
+    }
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+    effect    = "Allow"
+    resources = [aws_sqs_queue.dmm_events_queue.arn]
+  }
 }
 
 resource "aws_sqs_queue_policy" "process_feed_sqs_access" {
   queue_url = aws_sqs_queue.dmm_events_queue.id
-  policy    = data.aws_iam_policy_document.process_feed_sqs_access.json
+  policy    = data.aws_iam_policy_document.lambda_sqs_access.json
 }
 
 
-data "aws_iam_policy_document" "process_events_assume_role" { # todo rename process_events
+data "aws_iam_policy_document" "process_events_assume_role" {
   statement {
     effect = "Allow"
 
@@ -176,23 +186,6 @@ resource "aws_lambda_function" "process_events_lambda_function" {
 resource "aws_iam_role" "process_events_iam_role" {
   name               = "iam_for_process_events_lambda"
   assume_role_policy = data.aws_iam_policy_document.process_events_assume_role.json
-}
-
-data "aws_iam_policy_document" "process_events_sqs_access" {
-  statement {
-    principals {
-      identifiers = [aws_iam_role.process_events_iam_role.arn]
-      type        = "AWS"
-    }
-    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
-    effect    = "Allow"
-    resources = [aws_sqs_queue.dmm_events_queue.arn]
-  }
-}
-
-resource "aws_sqs_queue_policy" "process_events_sqs_access" {
-  queue_url = aws_sqs_queue.dmm_events_queue.id
-  policy    = data.aws_iam_policy_document.process_events_sqs_access.json
 }
 
 resource "aws_iam_role_policy_attachment" "process_events_lambda_policy" {

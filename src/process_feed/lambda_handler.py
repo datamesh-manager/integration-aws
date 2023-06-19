@@ -1,5 +1,5 @@
+import json
 import logging
-from json import dumps
 
 import boto3
 from botocore.client import ClientError
@@ -33,22 +33,23 @@ def process_batch(queue_url, last_event_id, elements) -> str:
 
     for element in elements:
         element_id = element['id']
-        logging.info('Processing element {}'.format(element_id))
+        logging.info('Processing event {}'.format(element_id))
 
-        json = dumps(element)
+        json_body = json.dumps(element)
 
         sqs.send_message(
             QueueUrl=queue_url,
-            MessageBody=json,
+            MessageBody=json_body,
             MessageDeduplicationId=element_id,
             # use single message processor for now:
+            # todo: can we use subject or data.id?
             MessageGroupId='1'
         )
 
         last_event_id = element_id
         put_last_event_id(last_event_id)
 
-        logging.info('Processed element {}'.format(element_id))
+        logging.info('Processed event {}'.format(element_id))
 
     return last_event_id
 
