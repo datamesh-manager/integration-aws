@@ -1,53 +1,64 @@
-import boto3
 import logging
+from json import dumps
 
+import boto3
 from botocore.client import ClientError
 from requests import get, Response
-from json import dumps
 
 
 def lambda_handler(event, context):
     logging.getLogger().setLevel(logging.INFO)
 
-    key = api_key('process_feed_dmm_api_key')
-
-    last_event_id = get_last_event_id()
+    api_key = dmm_api_key('process_feed_dmm_api_key')
     account_id = context.invoked_function_arn.split(":")[4]
 
+    queue_url = get_queue_url(account_id)
+
+    last_event_id = get_last_event_id()
     logging.info('Starting from event {}'.format(last_event_id))
 
+    while True:
+        elements = get_events(api_key, last_event_id).json()
+
+        if len(elements) == 0:
+            break
+        else:
+            last_event_id = process_batch(queue_url, last_event_id, elements)
+
+    return
+
+
+def process_batch(queue_url, last_event_id, elements) -> str:
     sqs = boto3.client('sqs')
-    queue_url = sqs.get_queue_url(
+
+    for element in elements:
+        element_id = element['id']
+        logging.info('Processing element {}'.format(element_id))
+
+        json = dumps(element)
+
+        sqs.send_message(
+            QueueUrl=queue_url,
+            MessageBody=json,
+            MessageDeduplicationId=element_id,
+            # use single message processor for now:
+            MessageGroupId='1'
+        )
+
+        last_event_id = element_id
+        put_last_event_id(last_event_id)
+
+        logging.info('Processed element {}'.format(element_id))
+
+    return last_event_id
+
+
+def get_queue_url(account_id):
+    queue_url = boto3.client('sqs').get_queue_url(
         QueueName='dmm-events.fifo',
         QueueOwnerAWSAccountId=account_id
     )['QueueUrl']
-
-    while True:
-        response_elements = get_events(key, last_event_id).json()
-
-        if len(response_elements) == 0:
-            break
-        else:
-            for element in response_elements:
-                element_id = element['id']
-                logging.info('Processing element {}'.format(element_id))
-
-                json = dumps(element)
-
-                sqs.send_message(
-                    QueueUrl=queue_url,
-                    MessageBody=json,
-                    MessageDeduplicationId=element_id,
-                    # use single message processor for now:
-                    MessageGroupId='1'
-                )
-
-                last_event_id = element_id
-                put_last_event_id(last_event_id)
-
-                logging.info('Processed element {}'.format(element_id))
-
-    return
+    return queue_url
 
 
 def get_last_event_id() -> str | None:
@@ -91,7 +102,7 @@ def events_url(last_event_id: str) -> str:
         else '{url}?lastEventId={id}'.format(url=base_url, id=last_event_id)
 
 
-def api_key(secret_name: str) -> str:
+def dmm_api_key(secret_name: str) -> str:
     client = boto3.client('secretsmanager')
     get_secret_value_response = client.get_secret_value(SecretId=secret_name)
 

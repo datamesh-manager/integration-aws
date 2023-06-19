@@ -19,7 +19,7 @@ function build_src {
 
     rm -rf "$out"
     mkdir -p "$out"
-    cp -r "$src/$name.py" "$src/requirements.txt" "$out"
+    cp -r "$src/lambda_handler.py" "$src/requirements.txt" "$out"
     cd "$out" || exit 1
     pip install --upgrade -r requirements.txt --target .
     zip -rqu "$result" .
