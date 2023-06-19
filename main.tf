@@ -1,6 +1,7 @@
 variable "versions" {
   type = object({
-    process_feed = string
+    process_feed   = string
+    process_events = string
   })
 }
 
@@ -48,11 +49,11 @@ data "aws_iam_policy_document" "assume_role" {
 }
 
 resource "aws_iam_role" "process_feed_iam_role" {
-  name               = "iam_for_lambda"
+  name               = "iam_for_process_feed_lambda"
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
 }
 
-resource "aws_iam_role_policy_attachment" "terraform_lambda_policy" {
+resource "aws_iam_role_policy_attachment" "process_feed_lambda_policy" {
   role       = aws_iam_role.process_feed_iam_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
@@ -126,6 +127,7 @@ resource "aws_sqs_queue" "dmm_events_queue" {
   name                        = "dmm-events.fifo"
   fifo_queue                  = true
   content_based_deduplication = true
+  visibility_timeout_seconds  = 60 # six times lambda timeout as stated in aws docs
 }
 
 data "aws_iam_policy_document" "process_feed_sqs_access" {
@@ -143,4 +145,62 @@ data "aws_iam_policy_document" "process_feed_sqs_access" {
 resource "aws_sqs_queue_policy" "process_feed_sqs_access" {
   queue_url = aws_sqs_queue.dmm_events_queue.id
   policy    = data.aws_iam_policy_document.process_feed_sqs_access.json
+}
+
+
+data "aws_iam_policy_document" "process_events_assume_role" { # todo rename process_events
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+resource "aws_lambda_function" "process_events_lambda_function" {
+  # todo: move lambda build versions to s3
+  filename      = "${path.module}/out/process_events_${var.versions.process_events}.zip"
+  function_name = "permissions__process_events"
+  role          = aws_iam_role.process_events_iam_role.arn
+  handler       = "lambda_handler.lambda_handler"
+  timeout       = 10
+  runtime       = "python3.10"
+  architectures = ["arm64"]
+}
+
+
+resource "aws_iam_role" "process_events_iam_role" {
+  name               = "iam_for_process_events_lambda"
+  assume_role_policy = data.aws_iam_policy_document.process_events_assume_role.json
+}
+
+data "aws_iam_policy_document" "process_events_sqs_access" {
+  statement {
+    principals {
+      identifiers = [aws_iam_role.process_events_iam_role.arn]
+      type        = "AWS"
+    }
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+    effect    = "Allow"
+    resources = [aws_sqs_queue.dmm_events_queue.arn]
+  }
+}
+
+resource "aws_sqs_queue_policy" "process_events_sqs_access" {
+  queue_url = aws_sqs_queue.dmm_events_queue.id
+  policy    = data.aws_iam_policy_document.process_events_sqs_access.json
+}
+
+resource "aws_iam_role_policy_attachment" "process_events_lambda_policy" {
+  role       = aws_iam_role.process_events_iam_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_lambda_event_source_mapping" "process_events_sqs_trigger" {
+  event_source_arn = aws_sqs_queue.dmm_events_queue.arn
+  function_name    = aws_lambda_function.process_events_lambda_function.arn
 }
