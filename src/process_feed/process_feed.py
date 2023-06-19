@@ -1,14 +1,26 @@
 import boto3
+import logging
+
 from botocore.client import ClientError
 from requests import get, Response
+from json import dumps
 
 
 def lambda_handler(event, context):
+    logging.getLogger().setLevel(logging.INFO)
+
     key = api_key('process_feed_dmm_api_key')
 
     last_event_id = get_last_event_id()
+    account_id = context.invoked_function_arn.split(":")[4]
 
-    print(last_event_id)
+    logging.info('Starting from event {}'.format(last_event_id))
+
+    sqs = boto3.client('sqs')
+    queue_url = sqs.get_queue_url(
+        QueueName='dmm-events.fifo',
+        QueueOwnerAWSAccountId=account_id
+    )['QueueUrl']
 
     while True:
         response_elements = get_events(key, last_event_id).json()
@@ -17,14 +29,28 @@ def lambda_handler(event, context):
             break
         else:
             for element in response_elements:
-                last_event_id = element['id']
-                print(last_event_id)
+                element_id = element['id']
+                logging.info('Processing element {}'.format(element_id))
+
+                json = dumps(element)
+
+                sqs.send_message(
+                    QueueUrl=queue_url,
+                    MessageBody=json,
+                    MessageDeduplicationId=element_id,
+                    # use single message processor for now:
+                    MessageGroupId='1'
+                )
+
+                last_event_id = element_id
                 put_last_event_id(last_event_id)
+
+                logging.info('Processed element {}'.format(element_id))
 
     return
 
 
-def get_last_event_id() -> str:
+def get_last_event_id() -> str | None:
     try:
         s3_object = boto3.client('s3').get_object(
             Bucket='dmm-permissions-extension',
@@ -34,7 +60,7 @@ def get_last_event_id() -> str:
         return s3_object['Body'].read()
     except ClientError as e:
         # todo: better check if object exists or other client error occurred
-        print(e.response)
+        logging.warning(e.response)
         return None
 
 

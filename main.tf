@@ -121,3 +121,26 @@ resource "aws_s3_bucket_policy" "process_feed_s3_access" {
   bucket = aws_s3_bucket.permissions_bucket.id
   policy = data.aws_iam_policy_document.process_feed_s3_access.json
 }
+
+resource "aws_sqs_queue" "dmm_events_queue" {
+  name                        = "dmm-events.fifo"
+  fifo_queue                  = true
+  content_based_deduplication = true
+}
+
+data "aws_iam_policy_document" "process_feed_sqs_access" {
+  statement {
+    principals {
+      identifiers = [aws_iam_role.process_feed_iam_role.arn]
+      type        = "AWS"
+    }
+    actions   = ["sqs:SendMessage", "sqs:GetQueueUrl"]
+    effect    = "Allow"
+    resources = [aws_sqs_queue.dmm_events_queue.arn]
+  }
+}
+
+resource "aws_sqs_queue_policy" "process_feed_sqs_access" {
+  queue_url = aws_sqs_queue.dmm_events_queue.id
+  policy    = data.aws_iam_policy_document.process_feed_sqs_access.json
+}
