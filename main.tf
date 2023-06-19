@@ -69,33 +69,35 @@ resource "aws_lambda_function" "process_feed_lambda_function" {
   architectures = ["arm64"]
 }
 
-resource "aws_secretsmanager_secret" "process_feed_dmm_api_key" {
-  name                           = "process_feed_dmm_api_key"
+resource "aws_secretsmanager_secret" "dmm_api_key" {
+  name                           = "permissions__dmm_api_key"
   force_overwrite_replica_secret = true # make sure to override secret
   recovery_window_in_days        = 0 # force deletion on destroy
 }
 
 resource "aws_secretsmanager_secret_version" "dmm_api_key" {
-  secret_id     = aws_secretsmanager_secret.process_feed_dmm_api_key.id
+  secret_id     = aws_secretsmanager_secret.dmm_api_key.id
   secret_string = var.dmm.api_key
 }
 
-resource "aws_iam_role_policy" "sm_policy" {
-  name = "process_feed_dmm_api_key_access"
-  role = aws_iam_role.process_feed_iam_role.id
+data "aws_iam_policy_document" "lambda_secretsmanager_access" {
+  statement {
+    principals {
+      identifiers = [
+        aws_iam_role.process_feed_iam_role.arn,
+        aws_iam_role.process_events_iam_role.arn
+      ]
+      type        = "AWS"
+    }
+    actions   = ["secretsmanager:GetSecretValue"]
+    effect    = "Allow"
+    resources = [aws_secretsmanager_secret.dmm_api_key.arn]
+  }
+}
 
-  policy = jsonencode({
-    Version   = "2012-10-17"
-    Statement = [
-      {
-        Action = [
-          "secretsmanager:GetSecretValue",
-        ]
-        Effect   = "Allow"
-        Resource = aws_secretsmanager_secret.process_feed_dmm_api_key.arn
-      }
-    ]
-  })
+resource "aws_secretsmanager_secret_policy" "lambda_secretsmanager_access" {
+  secret_arn = aws_secretsmanager_secret.dmm_api_key.arn
+  policy     = data.aws_iam_policy_document.lambda_secretsmanager_access.json
 }
 
 resource "aws_s3_bucket" "permissions_bucket" {
@@ -197,3 +199,13 @@ resource "aws_lambda_event_source_mapping" "process_events_sqs_trigger" {
   event_source_arn = aws_sqs_queue.dmm_events_queue.arn
   function_name    = aws_lambda_function.process_events_lambda_function.arn
 }
+
+# dummy iam roles
+
+#resource "aws_iam_role" "producer_dummy" {
+#  assume_role_policy = ""
+#}
+#
+#resource "aws_iam_role" "consumer_dummy" {
+#  assume_role_policy = ""
+#}

@@ -9,7 +9,7 @@ from requests import get, Response
 def lambda_handler(event, context):
     logging.getLogger().setLevel(logging.INFO)
 
-    api_key = dmm_api_key('process_feed_dmm_api_key')
+    api_key = dmm_api_key('permissions__dmm_api_key')
     account_id = context.invoked_function_arn.split(":")[4]
 
     queue_url = get_queue_url(account_id)
@@ -42,7 +42,6 @@ def process_batch(queue_url, last_event_id, elements) -> str:
             MessageBody=json_body,
             MessageDeduplicationId=element_id,
             # use single message processor for now:
-            # todo: can we use subject or data.id?
             MessageGroupId='1'
         )
 
@@ -69,7 +68,7 @@ def get_last_event_id() -> str | None:
             Key='process_feed/last_event_id'
         )
 
-        return s3_object['Body'].read()
+        return s3_object['Body'].read().decode('utf-8')
     except ClientError as e:
         # todo: better check if object exists or other client error occurred
         logging.warning(e.response)
