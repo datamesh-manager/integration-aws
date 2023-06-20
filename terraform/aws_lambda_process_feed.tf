@@ -11,7 +11,27 @@ resource "aws_lambda_function" "process_feed_lambda_function" {
   architectures = ["arm64"]
 }
 
-# todo trigger lambda periodically
+# trigger process feed lambda every minute
+
+resource "aws_cloudwatch_event_rule" "process_feed_schedule" {
+  name                = "schedule"
+  description         = "Schedule for Lambda Function"
+  schedule_expression = "rate(1 minute)"
+}
+
+resource "aws_cloudwatch_event_target" "process_feed_schedule_target" {
+  rule      = aws_cloudwatch_event_rule.process_feed_schedule.name
+  target_id = "processing_lambda"
+  arn       = aws_lambda_function.process_feed_lambda_function.arn
+}
+
+
+resource "aws_lambda_permission" "process_feed_schedule_permission" {
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.process_feed_lambda_function.function_name
+  principal     = "events.amazonaws.com"
+}
 
 # basic iam configuration to assume role
 
