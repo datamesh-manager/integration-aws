@@ -18,7 +18,7 @@ def lambda_handler(event, context):
     logging.info('Starting from event {}'.format(last_event_id))
 
     while True:
-        elements = get_events(api_key, last_event_id).json()
+        elements = get_events(api_key, last_event_id)
 
         if len(elements) == 0:
             break
@@ -28,7 +28,11 @@ def lambda_handler(event, context):
     return
 
 
-def process_batch(queue_url, last_event_id, elements) -> str:
+def process_batch(
+    queue_url: str,
+    last_event_id: str,
+    elements: list[dict]
+) -> str:
     sqs = boto3.client('sqs')
 
     for element in elements:
@@ -53,7 +57,7 @@ def process_batch(queue_url, last_event_id, elements) -> str:
     return last_event_id
 
 
-def get_queue_url(account_id):
+def get_queue_url(account_id: str) -> str:
     queue_url = boto3.client('sqs').get_queue_url(
         QueueName='dmm-events.fifo',
         QueueOwnerAWSAccountId=account_id
@@ -83,16 +87,16 @@ def put_last_event_id(event_id: str):
     )
 
 
-def get_events(key: str, last_event_id: str) -> Response:
+def get_events(api_key: str, last_event_id: str) -> list[dict[str, str | dict]]:
     response = get(
         url=events_url(last_event_id),
         headers={
-            'x-api-key': key,
+            'x-api-key': api_key,
             'accept': 'application/cloudevents-batch+json'
         })
     response.raise_for_status()
 
-    return response
+    return response.json()
 
 
 def events_url(last_event_id: str) -> str:
