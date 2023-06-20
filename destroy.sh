@@ -7,4 +7,4 @@ fi
 
 VERSION=$1
 
-terraform destroy -var='versions={"process_feed":"'"$VERSION"'","process_events":"'"$VERSION"'"}' -auto-approve
+terraform -chdir=terraform destroy -var='versions={"process_feed":"'"$VERSION"'","process_events":"'"$VERSION"'"}' -auto-approve

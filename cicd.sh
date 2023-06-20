@@ -30,4 +30,5 @@ function build_src {
 build_src "process_feed"
 build_src "process_events"
 
-terraform apply -var='versions={"process_feed":"'"$VERSION"'","process_events":"'"$VERSION"'"}' -auto-approve
+terraform -chdir=terraform init
+terraform -chdir=terraform apply -var='versions={"process_feed":"'"$VERSION"'","process_events":"'"$VERSION"'"}' -auto-approve

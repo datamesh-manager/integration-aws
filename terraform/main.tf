@@ -60,7 +60,7 @@ resource "aws_iam_role_policy_attachment" "process_feed_lambda_policy" {
 
 resource "aws_lambda_function" "process_feed_lambda_function" {
   # todo: move lambda build versions to s3
-  filename      = "${path.module}/out/process_feed_${var.versions.process_feed}.zip"
+  filename      = "../out/process_feed_${var.versions.process_feed}.zip"
   function_name = "permissions__process_feed"
   role          = aws_iam_role.process_feed_iam_role.arn
   handler       = "lambda_handler.lambda_handler"
@@ -175,7 +175,7 @@ data "aws_iam_policy_document" "process_events_assume_role" {
 
 resource "aws_lambda_function" "process_events_lambda_function" {
   # todo: move lambda build versions to s3
-  filename      = "${path.module}/out/process_events_${var.versions.process_events}.zip"
+  filename      = "../out/process_events_${var.versions.process_events}.zip"
   function_name = "permissions__process_events"
   role          = aws_iam_role.process_events_iam_role.arn
   handler       = "lambda_handler.lambda_handler"
@@ -199,13 +199,3 @@ resource "aws_lambda_event_source_mapping" "process_events_sqs_trigger" {
   event_source_arn = aws_sqs_queue.dmm_events_queue.arn
   function_name    = aws_lambda_function.process_events_lambda_function.arn
 }
-
-# dummy iam roles
-
-#resource "aws_iam_role" "producer_dummy" {
-#  assume_role_policy = ""
-#}
-#
-#resource "aws_iam_role" "consumer_dummy" {
-#  assume_role_policy = ""
-#}
