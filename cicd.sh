@@ -44,7 +44,7 @@ deploy_src "process_feed"
 deploy_src "process_events"
 
 # create or update infrastructure and application
-terraform -chdir=terraform init
+terraform -chdir=terraform init -upgrade
 terraform -chdir=terraform apply\
   -var='versions={"process_feed":"'"$VERSION"'","process_events":"'"$VERSION"'"}'\
   -auto-approve
