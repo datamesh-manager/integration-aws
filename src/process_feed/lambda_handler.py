@@ -3,13 +3,13 @@ import logging
 
 import boto3
 from botocore.client import ClientError
-from requests import get, Response
+from requests import get
 
 
 def lambda_handler(event, context):
     logging.getLogger().setLevel(logging.INFO)
 
-    api_key = dmm_api_key('permissions__dmm_api_key')
+    api_key = dmm_api_key('dmm_integration__api_key')
     account_id = context.invoked_function_arn.split(":")[4]
 
     queue_url = get_queue_url(account_id)
@@ -68,7 +68,7 @@ def get_queue_url(account_id: str) -> str:
 def get_last_event_id() -> str | None:
     try:
         s3_object = boto3.client('s3').get_object(
-            Bucket='dmm-permissions-extension',
+            Bucket='dmm-integration',
             Key='process_feed/last_event_id'
         )
 
@@ -82,7 +82,7 @@ def get_last_event_id() -> str | None:
 def put_last_event_id(event_id: str):
     boto3.client('s3').put_object(
         Body=event_id,
-        Bucket='dmm-permissions-extension',
+        Bucket='dmm-integration',
         Key='process_feed/last_event_id'
     )
 

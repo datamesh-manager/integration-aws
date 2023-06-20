@@ -1,0 +1,9 @@
+aws = {
+  region     = "aws-region"
+  access_key = "AWS_ACCESS_KEY"
+  secret_key = "aws+secret+key"
+}
+
+dmm = {
+  api_key = "dmm_api_key"
+}

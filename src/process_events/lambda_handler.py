@@ -9,7 +9,7 @@ def lambda_handler(event, context):
     logging.getLogger().setLevel(logging.INFO)
 
     dmm_events = list(map(lambda e: json.loads(e['body']), event['Records']))
-    api_key = dmm_api_key('permissions__dmm_api_key')
+    api_key = dmm_api_key('dmm_integration__api_key')
 
     for dmm_event in dmm_events:
         process_event(api_key, dmm_event)
