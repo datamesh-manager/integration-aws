@@ -1,8 +1,8 @@
 # create lambda
 
 resource "aws_lambda_function" "process_feed_lambda_function" {
-  # todo: move lambda build versions to s3
-  filename      = "../out/process_feed_${var.versions.process_feed}.zip"
+  s3_bucket     = data.aws_s3_bucket.common_s3_bucket.bucket
+  s3_key        = "process_feed/src/${var.versions.process_feed}/lambda.zip"
   function_name = "DMM_integration__process_feed"
   role          = aws_iam_role.process_feed_iam_role.arn
   handler       = "lambda_handler.lambda_handler"

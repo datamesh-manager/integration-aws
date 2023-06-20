@@ -7,8 +7,9 @@ fi
 
 VERSION=$1
 WORKING_DIRECTORY=$(pwd)
+BUCKET_NAME="dmm-integration"
 
-function build_src {
+function deploy_src {
   local name=$1
 
   local src="src/$name"
@@ -22,13 +23,16 @@ function build_src {
   cd "$out" || exit 1
   pip install --upgrade -r requirements.txt --target .
   zip -rqu "$result" .
-  mv "$result" ../
+
+  aws s3 cp "$result" "s3://$BUCKET_NAME/$name/src/${VERSION}/lambda.zip"
 
   cd "$WORKING_DIRECTORY" || exit 1
 }
 
-build_src "process_feed"
-build_src "process_events"
+aws s3 mb "s3://$BUCKET_NAME"
+
+deploy_src "process_feed"
+deploy_src "process_events"
 
 terraform -chdir=terraform init
 terraform -chdir=terraform apply -var='versions={"process_feed":"'"$VERSION"'","process_events":"'"$VERSION"'"}' -auto-approve

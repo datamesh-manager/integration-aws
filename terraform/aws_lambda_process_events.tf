@@ -1,8 +1,8 @@
 # create lambda
 
 resource "aws_lambda_function" "process_events_lambda_function" {
-  # todo: move lambda build versions to s3
-  filename      = "../out/process_events_${var.versions.process_events}.zip"
+  s3_bucket     = data.aws_s3_bucket.common_s3_bucket.bucket
+  s3_key        = "process_events/src/${var.versions.process_events}/lambda.zip"
   function_name = "DMM_integration__process_events"
   role          = aws_iam_role.process_events_iam_role.arn
   handler       = "lambda_handler.lambda_handler"
