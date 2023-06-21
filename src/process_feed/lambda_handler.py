@@ -1,113 +1,161 @@
 import json
 import logging
+from typing import TypeAlias
 
 import boto3
+import requests
 from botocore.client import ClientError
-from requests import get
+
+DMMEvent: TypeAlias = dict[str, str | dict[str]]
 
 
 def lambda_handler(event, context):
     logging.getLogger().setLevel(logging.INFO)
 
-    api_key = dmm_api_key('dmm_integration__api_key')
-    account_id = context.invoked_function_arn.split(":")[4]
+    # parameters: todo: pass from outside
+    dmm_base_url = 'https://app.datamesh-manager.com/api/events'
+    dmm_api_key_secret_name = 'dmm_integration__api_key'
+    aws_account_id = context.invoked_function_arn.split(":")[4]
+    sqs_queue_name = 'dmm-events.fifo'
 
-    queue_url = get_queue_url(account_id)
+    # create repo for last processed event
+    s3 = boto3.client('s3')
+    last_processed_event_repo = LastProcessedEventIdRepo(s3)
 
-    last_event_id = get_last_event_id()
-    logging.info('Starting from event {}'.format(last_event_id))
+    # create client for target queue in sqs
+    sqs = boto3.client('sqs')
+    target_queue_client = TargetQueueClient(sqs, sqs_queue_name, aws_account_id)
 
-    while True:
-        elements = get_events(api_key, last_event_id)
+    # create client for Data Mesh Manager
+    secretsmanager = boto3.client('secretsmanager')
+    secrets = Secrets(secretsmanager)
+    dmm_api_key = secrets.get_secret(dmm_api_key_secret_name)
+    dmm_events_client = DMMEventsClient(dmm_base_url, dmm_api_key)
 
-        if len(elements) == 0:
-            break
-        else:
-            last_event_id = process_batch(queue_url, last_event_id, elements)
+    # create feed processor
+    feed_processor = FeedProcessor(
+        last_processed_event_repo,
+        dmm_events_client,
+        target_queue_client
+    )
+
+    # start processing new events
+    feed_processor.process_new_events()
 
     return
 
 
-def process_batch(
-    queue_url: str,
-    last_event_id: str,
-    elements: list[dict]
-) -> str:
-    sqs = boto3.client('sqs')
+class TargetQueueClient:
+    def __init__(self, sqs, queue_name: str, aws_account_id: str):
+        self._sqs = sqs
+        self._queue_name = queue_name
+        self._aws_account_id = aws_account_id
 
-    for element in elements:
-        element_id = element['id']
-        logging.info('Processing event {}'.format(element_id))
-
-        json_body = json.dumps(element)
-
-        sqs.send_message(
-            QueueUrl=queue_url,
-            MessageBody=json_body,
+    def send_event(self, element, element_id):
+        self._sqs.send_message(
+            QueueUrl=self._get_queue_url(),
+            MessageBody=json.dumps(element),
             MessageDeduplicationId=element_id,
-            # use single message processor for now:
+            # use single message processor for now
             MessageGroupId='1'
         )
 
-        last_event_id = element_id
-        put_last_event_id(last_event_id)
-
-        logging.info('Processed event {}'.format(element_id))
-
-    return last_event_id
-
-
-def get_queue_url(account_id: str) -> str:
-    queue_url = boto3.client('sqs').get_queue_url(
-        QueueName='dmm-events.fifo',
-        QueueOwnerAWSAccountId=account_id
-    )['QueueUrl']
-    return queue_url
+    def _get_queue_url(self) -> str:
+        return self._sqs.get_queue_url(
+            QueueName=self._queue_name,
+            QueueOwnerAWSAccountId=self._aws_account_id
+        )['QueueUrl']
 
 
-def get_last_event_id() -> str | None:
-    try:
-        s3_object = boto3.client('s3').get_object(
+class DMMEventsClient:
+    def __init__(self, base_url: str, api_key: str):
+        self._base_url = base_url
+        self._api_key = api_key
+
+    def get_events(
+        self,
+        last_event_id: str | None
+    ) -> list[DMMEvent]:
+        response = requests.get(
+            url=self._events_url(last_event_id),
+            headers={
+                'x-api-key': self._api_key,
+                'accept': 'application/cloudevents-batch+json'
+            })
+        response.raise_for_status()
+        return response.json()
+
+    def _events_url(self, last_event_id: str | None) -> str:
+        return self._base_url if last_event_id is None \
+            else '{url}?lastEventId={id}'.format(url=self._base_url,
+                                                 id=last_event_id)
+
+
+class LastProcessedEventIdRepo:
+    def __init__(self, s3):
+        self._s3 = s3
+
+    def get_last_event_id(self) -> str | None:
+        try:
+            s3_object = self._s3.get_object(
+                Bucket='dmm-integration',
+                Key='process_feed/last_event_id'
+            )
+            return s3_object['Body'].read().decode('utf-8')
+        except ClientError as e:
+            logging.warning(e.response)
+            return None
+
+    def put_last_event_id(self, event_id: str):
+        self._s3.put_object(
+            Body=event_id,
             Bucket='dmm-integration',
             Key='process_feed/last_event_id'
         )
 
-        return s3_object['Body'].read().decode('utf-8')
-    except ClientError as e:
-        # todo: better check if object exists or other client error occurred
-        logging.warning(e.response)
-        return None
+
+class Secrets:
+    def __init__(self, secretsmanager):
+        self._secretsmanager = secretsmanager
+
+    def get_secret(self, secret_name: str) -> str:
+        get_secret_value_response = \
+            self._secretsmanager.get_secret_value(SecretId=secret_name)
+
+        return get_secret_value_response['SecretString']
 
 
-def put_last_event_id(event_id: str):
-    boto3.client('s3').put_object(
-        Body=event_id,
-        Bucket='dmm-integration',
-        Key='process_feed/last_event_id'
-    )
+class FeedProcessor:
+    def __init__(
+        self,
+        last_process_event_id_repo: LastProcessedEventIdRepo,
+        dmm_events_client: DMMEventsClient,
+        target_queue_client: TargetQueueClient
+    ):
+        self._last_process_event_id_repo = last_process_event_id_repo
+        self._dmm_events_client = dmm_events_client
+        self._target_queue_client = target_queue_client
 
+    def process_new_events(self):
+        last_event_id = self._last_process_event_id_repo.get_last_event_id()
+        logging.info('Starting from event {}'.format(last_event_id))
+        while True:
+            elements = self._dmm_events_client.get_events(last_event_id)
+            if len(elements) == 0:
+                break
+            else:
+                last_event_id = self._process_batch(elements)
 
-def get_events(api_key: str, last_event_id: str) -> list[dict[str, str | dict]]:
-    response = get(
-        url=events_url(last_event_id),
-        headers={
-            'x-api-key': api_key,
-            'accept': 'application/cloudevents-batch+json'
-        })
-    response.raise_for_status()
+    # todo: process batches of 10 elements to reduce iops
+    def _process_batch(self, elements: list[DMMEvent]) -> str | None:
+        element_id = None
+        for element in elements:
+            element_id = element['id']
+            self._process_element(element, element_id)
+        return element_id
 
-    return response.json()
-
-
-def events_url(last_event_id: str) -> str:
-    base_url = 'https://app.datamesh-manager.com/api/events'
-
-    return base_url if last_event_id is None \
-        else '{url}?lastEventId={id}'.format(url=base_url, id=last_event_id)
-
-
-def dmm_api_key(secret_name: str) -> str:
-    client = boto3.client('secretsmanager')
-    get_secret_value_response = client.get_secret_value(SecretId=secret_name)
-
-    return get_secret_value_response['SecretString']
+    def _process_element(self, element: DMMEvent, element_id: str):
+        logging.info('Processing event {}'.format(element_id))
+        self._target_queue_client.send_event(element, element_id)
+        self._last_process_event_id_repo.put_last_event_id(element_id)
+        logging.info('Processed event {}'.format(element_id))
