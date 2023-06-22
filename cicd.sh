@@ -9,11 +9,12 @@ VERSION=$1
 WORKING_DIRECTORY=$(pwd)
 BUCKET_NAME="dmm-integration"
 
-function deploy_src {
+declare -a LAMBDAS=("process_feed" "process_events")
+
+function build {
   local name=$1
   local src="src/$name"
   local out="out/$name"
-  local result="${name}_${VERSION}.zip"
 
   # clean
   rm -rf "$out"
@@ -25,6 +26,38 @@ function deploy_src {
 
   # install dependencies
   python3.10 -m pip install --upgrade -r requirements.txt --target .
+
+  cd "$WORKING_DIRECTORY" || exit 1
+}
+
+function test {
+  local name=$1
+  local src="src/$name"
+  local out="out/$name"
+
+  # copy testfile
+  cp -r "$src/test_lambda_handler.py" "$out"
+  cd "$out" || exit 1
+
+  # run tests
+  python3.10 -m unittest -v test_lambda_handler -f
+  exit_code=$?
+
+  # exit if any test failed
+  if [ $exit_code != 0 ]; then exit $exit_code
+  fi
+
+  # remove testfile
+  rm test_lambda_handler.py
+
+  cd "$WORKING_DIRECTORY" || exit 1
+}
+
+function deploy {
+  local name=$1
+  local result="${name}_${VERSION}.zip"
+
+  cd "out/$name" || exit 1
 
   # bundle
   zip -rqu "$result" .
@@ -39,9 +72,20 @@ function deploy_src {
 # create s3 bucket
 aws s3 mb "s3://$BUCKET_NAME"
 
+# build lambda sources
+for i in "${LAMBDAS[@]}" ; do
+  build "$i"
+done
+
+# test lambda sources
+for i in "${LAMBDAS[@]}" ; do
+  test "$i"
+done
+
 # deploy lambda sources to s3
-deploy_src "process_feed"
-deploy_src "process_events"
+for i in "${LAMBDAS[@]}" ; do
+  deploy "$i"
+done
 
 # create or update infrastructure and application
 terraform -chdir=terraform init -upgrade

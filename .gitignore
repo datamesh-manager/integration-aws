@@ -17,5 +17,6 @@ override.tf.json
 *_override.tf.json
 
 **/.env
+**/__pycache__/
 
 .DS_Store

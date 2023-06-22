@@ -9,7 +9,7 @@ from botocore.client import ClientError
 DMMEvent: TypeAlias = dict[str, str | dict[str]]
 
 
-def lambda_handler(event, context):
+def lambda_handler(event, context) -> None:
     logging.getLogger().setLevel(logging.INFO)
 
     # parameters: todo: pass from outside
@@ -18,13 +18,17 @@ def lambda_handler(event, context):
     aws_account_id = context.invoked_function_arn.split(":")[4]
     sqs_queue_name = 'dmm-events.fifo'
 
-    # create repo for last processed event
-    s3 = boto3.client('s3')
-    last_processed_event_repo = LastProcessedEventIdRepo(s3)
-
     # create client for target queue in sqs
     sqs = boto3.client('sqs')
     target_queue_client = TargetQueueClient(sqs, sqs_queue_name, aws_account_id)
+
+    # create repo for last processed event
+    s3 = boto3.client('s3')
+    last_processed_event_repo = LastProcessedEventIdRepo(
+        s3,
+        'dmm-integration',
+        'process_feed/last_event_id'
+    )
 
     # create client for Data Mesh Manager
     secretsmanager = boto3.client('secretsmanager')
@@ -51,11 +55,11 @@ class TargetQueueClient:
         self._queue_name = queue_name
         self._aws_account_id = aws_account_id
 
-    def send_event(self, element, element_id):
+    def send_message(self, message: dict, message_id: str) -> None:
         self._sqs.send_message(
             QueueUrl=self._get_queue_url(),
-            MessageBody=json.dumps(element),
-            MessageDeduplicationId=element_id,
+            MessageBody=json.dumps(message),
+            MessageDeduplicationId=message_id,
             # use single message processor for now
             MessageGroupId='1'
         )
@@ -65,6 +69,32 @@ class TargetQueueClient:
             QueueName=self._queue_name,
             QueueOwnerAWSAccountId=self._aws_account_id
         )['QueueUrl']
+
+
+class LastProcessedEventIdRepo:
+    def __init__(self, s3, bucket: str, key: str):
+        self._s3 = s3
+        self._bucket = bucket
+        self._key = key
+
+    def get_last_event_id(self) -> str | None:
+        try:
+            s3_object = self._s3.get_object(Bucket=self._bucket, Key=self._key)
+            return s3_object['Body'].read().decode('utf-8')
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'NoSuchKey':
+                # no id exists yet, so return None
+                return None
+            else:
+                # otherwise raise the error
+                raise e
+
+    def put_last_event_id(self, event_id: str):
+        self._s3.put_object(
+            Body=event_id,
+            Bucket=self._bucket,
+            Key=self._key
+        )
 
 
 class DMMEventsClient:
@@ -91,29 +121,6 @@ class DMMEventsClient:
                                                  id=last_event_id)
 
 
-class LastProcessedEventIdRepo:
-    def __init__(self, s3):
-        self._s3 = s3
-
-    def get_last_event_id(self) -> str | None:
-        try:
-            s3_object = self._s3.get_object(
-                Bucket='dmm-integration',
-                Key='process_feed/last_event_id'
-            )
-            return s3_object['Body'].read().decode('utf-8')
-        except ClientError as e:
-            logging.warning(e.response)
-            return None
-
-    def put_last_event_id(self, event_id: str):
-        self._s3.put_object(
-            Body=event_id,
-            Bucket='dmm-integration',
-            Key='process_feed/last_event_id'
-        )
-
-
 class Secrets:
     def __init__(self, secretsmanager):
         self._secretsmanager = secretsmanager
@@ -136,7 +143,7 @@ class FeedProcessor:
         self._dmm_events_client = dmm_events_client
         self._target_queue_client = target_queue_client
 
-    def process_new_events(self):
+    def process_new_events(self) -> None:
         last_event_id = self._last_process_event_id_repo.get_last_event_id()
         logging.info('Starting from event {}'.format(last_event_id))
         while True:
@@ -154,8 +161,8 @@ class FeedProcessor:
             self._process_element(element, element_id)
         return element_id
 
-    def _process_element(self, element: DMMEvent, element_id: str):
+    def _process_element(self, element: DMMEvent, element_id: str) -> None:
         logging.info('Processing event {}'.format(element_id))
-        self._target_queue_client.send_event(element, element_id)
+        self._target_queue_client.send_message(element, element_id)
         self._last_process_event_id_repo.put_last_event_id(element_id)
         logging.info('Processed event {}'.format(element_id))
