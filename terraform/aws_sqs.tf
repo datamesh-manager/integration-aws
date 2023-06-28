@@ -1,7 +1,7 @@
 # create queue for forwarded DMM events in sqs
 
 resource "aws_sqs_queue" "dmm_events_queue" {
-  name                        = "dmm-events.fifo"
+  name                        = var.event_queue_name
   fifo_queue                  = true
   content_based_deduplication = true
   visibility_timeout_seconds  = 60 # six times the consuming lambda timeout as stated in aws docs
