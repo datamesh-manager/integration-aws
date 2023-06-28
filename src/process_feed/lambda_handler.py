@@ -17,6 +17,8 @@ def lambda_handler(event, context) -> None:
     dmm_api_key_secret_name = 'dmm_integration__api_key'
     aws_account_id = context.invoked_function_arn.split(":")[4]
     sqs_queue_name = 'dmm-events.fifo'
+    bucket_name = 'dmm-integration'
+    last_event_id_object_name = 'process_feed/last_event_id'
 
     # create client for target queue in sqs
     sqs = boto3.client('sqs')
@@ -26,8 +28,8 @@ def lambda_handler(event, context) -> None:
     s3 = boto3.client('s3')
     last_processed_event_repo = LastProcessedEventIdRepo(
         s3,
-        'dmm-integration',
-        'process_feed/last_event_id'
+        bucket_name,
+        last_event_id_object_name
     )
 
     # create client for Data Mesh Manager
