@@ -1,7 +1,7 @@
 # create s3 bucket
 
 data "aws_s3_bucket" "common_s3_bucket" {
-  bucket = "dmm-integration" # todo: variables
+  bucket = var.bucket_name
 }
 
 # enable versioning
@@ -23,7 +23,7 @@ data "aws_iam_policy_document" "process_feed_s3_access" {
     }
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:PutObject"]
-    resources = ["${data.aws_s3_bucket.common_s3_bucket.arn}/process_feed/last_event_id"] # todo: variables
+    resources = ["${data.aws_s3_bucket.common_s3_bucket.arn}/process_feed/last_event_id"]
   }
 
   statement {

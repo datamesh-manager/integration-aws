@@ -1,7 +1,7 @@
 # create secret for data mesh manager in secretsmanager
 
 resource "aws_secretsmanager_secret" "dmm_api_key" {
-  name                           = "dmm_integration__api_key"
+  name                           = "${var.secrets_manager_prefix}api_key"
   force_overwrite_replica_secret = true # make sure to override secret
   recovery_window_in_days        = 0    # force deletion on destroy
 }
@@ -20,7 +20,7 @@ data "aws_iam_policy_document" "lambda_secretsmanager_access" {
         aws_iam_role.process_feed_iam_role.arn,
         aws_iam_role.process_events_iam_role.arn
       ]
-      type        = "AWS"
+      type = "AWS"
     }
     effect    = "Allow"
     actions   = ["secretsmanager:GetSecretValue"]
