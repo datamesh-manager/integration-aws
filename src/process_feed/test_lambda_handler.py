@@ -2,14 +2,14 @@ import json
 import unittest
 from io import BytesIO
 from unittest import TestCase
-from unittest.mock import sentinel, patch, Mock
+from unittest.mock import sentinel, patch, call, Mock
 
 import boto3
 from botocore.response import StreamingBody
 from botocore.stub import Stubber
 
 from lambda_handler import TargetQueueClient, LastProcessedEventIdRepo, \
-    DMMEventsClient, Secrets
+    DMMEventsClient, Secrets, FeedProcessor, DMMEvent
 
 
 class TestTargetQueueClient(TestCase):
@@ -204,7 +204,92 @@ class TestSecrets(TestCase):
 
 
 class TestFeedProcessor(TestCase):
-    pass
+    _id_1 = '123'
+    _event_1 = {'id': _id_1}
+
+    _id_2 = '321'
+    _event_2 = {'id': _id_2}
+
+    @patch('lambda_handler.TargetQueueClient')
+    @patch('lambda_handler.DMMEventsClient')
+    @patch('lambda_handler.LastProcessedEventIdRepo')
+    def setUp(self,
+        last_processed_event_id_repo_mock,
+        dmm_events_client_mock,
+        target_queue_client_mock) -> None:
+
+        self._last_processed_event_id_repo_mock = \
+            last_processed_event_id_repo_mock
+        self._dmm_events_client_mock = dmm_events_client_mock
+        self._target_queue_client_mock = target_queue_client_mock
+
+        # basic mocks
+        self._last_processed_event_id_repo_mock.get_last_event_id = lambda: None
+        self._dmm_events_client_mock.get_events = \
+            self._process_new_events__get_events_mock
+
+        self._feed_processor = FeedProcessor(
+            self._last_processed_event_id_repo_mock,
+            self._dmm_events_client_mock,
+            self._target_queue_client_mock)
+
+    def tearDown(self) -> None:
+        self._last_processed_event_id_repo_mock.reset_mock()
+        self._dmm_events_client_mock.reset_mock()
+        self._target_queue_client_mock.reset_mock()
+
+    @staticmethod
+    def _process_new_events__get_events_mock(
+        last_event_id: str | None) -> list[DMMEvent]:
+
+        if last_event_id is None:
+            return [TestFeedProcessor._event_1, TestFeedProcessor._event_2]
+        else:
+            return []
+
+    def test_process_new_events__sends_message(self) -> None:
+        self._feed_processor.process_new_events()
+
+        self._target_queue_client_mock.send_message \
+            .assert_has_calls([call(self._event_1, self._id_1),
+                               call(self._event_2, self._id_2)])
+
+    def test_process_new_events__put_last_event_id(self) -> None:
+        self._feed_processor.process_new_events()
+
+        self._last_processed_event_id_repo_mock.put_last_event_id \
+            .assert_has_calls([call(self._id_1), call(self._id_2)])
+
+    def test_process_new_events__order_of_calls(self) -> None:
+        expected = ['send_message {}'.format(self._id_1),
+                    'event_id {}'.format(self._id_1),
+                    'send_message {}'.format(self._id_2),
+                    'event_id {}'.format(self._id_2)]
+        result = []
+
+        self._target_queue_client_mock \
+            .send_message.side_effect = lambda m, i: \
+            result.append('send_message {}'.format(i))
+
+        self._last_processed_event_id_repo_mock \
+            .put_last_event_id.side_effect = lambda i: \
+            result.append('event_id {}'.format(i))
+
+        self._feed_processor.process_new_events()
+
+        self.assertEqual(expected, result)
+
+
+
+    def test_process_new_events__existing_event_id(self) -> None:
+        # override get_last_event_id mock
+        self._last_processed_event_id_repo_mock.get_last_event_id = \
+            lambda: self._id_2
+
+        self._feed_processor.process_new_events()
+
+        self._last_processed_event_id_repo_mock.put_last_event_id \
+            .assert_not_called()
 
 
 if __name__ == '__main__':
