@@ -12,12 +12,11 @@ resource "aws_lambda_function" "process_feed_lambda_function" {
 
   environment {
     variables = {
-      aws_account_id            = data.aws_caller_identity.current.account_id
+      bucket_name               = var.bucket_name
       dmm_base_url              = local.dmm_base_url
       dmm_api_key_secret_name   = local.dmm_api_key_secret_name
-      sqs_queue_name            = var.event_queue_name
-      bucket_name               = var.bucket_name
       last_event_id_object_name = local.last_event_id_object_name
+      sqs_queue_url             = aws_sqs_queue.dmm_events_queue.url
     }
   }
 }

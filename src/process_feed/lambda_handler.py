@@ -14,16 +14,15 @@ def lambda_handler(event, context) -> None:
     logging.getLogger().setLevel(logging.INFO)
 
     # get configuration
-    aws_account_id = environ['aws_account_id']
     dmm_base_url = environ['dmm_base_url']
     dmm_api_key_secret_name = environ['dmm_api_key_secret_name']
-    sqs_queue_name = environ['sqs_queue_name']
     bucket_name = environ['bucket_name']
     last_event_id_object_name = environ['last_event_id_object_name']
+    sqs_queue_url = environ['sqs_queue_url']
 
     # create client for target queue in sqs
     sqs = boto3.client('sqs')
-    target_queue_client = TargetQueueClient(sqs, sqs_queue_name, aws_account_id)
+    target_queue_client = TargetQueueClient(sqs, sqs_queue_url)
 
     # create repo for last processed event
     s3 = boto3.client('s3')
@@ -53,25 +52,18 @@ def lambda_handler(event, context) -> None:
 
 
 class TargetQueueClient:
-    def __init__(self, sqs, queue_name: str, aws_account_id: str):
+    def __init__(self, sqs, queue_url: str):
         self._sqs = sqs
-        self._queue_name = queue_name
-        self._aws_account_id = aws_account_id
+        self._queue_url = queue_url
 
     def send_message(self, message: dict, message_id: str) -> None:
         self._sqs.send_message(
-            QueueUrl=self._get_queue_url(),
+            QueueUrl=self._queue_url,
             MessageBody=json.dumps(message),
             MessageDeduplicationId=message_id,
             # use single message processor for now
             MessageGroupId='1'
         )
-
-    def _get_queue_url(self) -> str:
-        return self._sqs.get_queue_url(
-            QueueName=self._queue_name,
-            QueueOwnerAWSAccountId=self._aws_account_id
-        )['QueueUrl']
 
 
 class LastProcessedEventIdRepo:

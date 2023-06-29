@@ -14,25 +14,10 @@ class TestTargetQueueClient(unittest.TestCase):
     def setUp(self) -> None:
         self._queue_url = 'a_queue_url'
 
-        queue_name = 'a_queue_name'
-        account_id = 'an_aws_account_id'
-
-        response = {'QueueUrl': self._queue_url}
-        expected_params = {
-            'QueueName': queue_name,
-            'QueueOwnerAWSAccountId': account_id
-        }
-
         sqs = boto3.client('sqs')
 
         self._sqs_stubber = Stubber(sqs)
-        self._sqs_stubber.add_response(
-            'get_queue_url',
-            response,
-            expected_params
-        )
-
-        self._queue_client = TargetQueueClient(sqs, queue_name, account_id)
+        self._queue_client = TargetQueueClient(sqs, self._queue_url)
 
     def tearDown(self) -> None:
         self._sqs_stubber.deactivate()
