@@ -1,8 +1,8 @@
 import json
 import unittest
 from io import BytesIO
-from unittest import mock
-from unittest.mock import sentinel
+from unittest import TestCase
+from unittest.mock import sentinel, patch, Mock
 
 import boto3
 from botocore.response import StreamingBody
@@ -12,7 +12,7 @@ from lambda_handler import TargetQueueClient, LastProcessedEventIdRepo, \
     DMMEventsClient, Secrets
 
 
-class TestTargetQueueClient(unittest.TestCase):
+class TestTargetQueueClient(TestCase):
 
     def setUp(self) -> None:
         self._queue_url = 'a_queue_url'
@@ -45,7 +45,7 @@ class TestTargetQueueClient(unittest.TestCase):
         self._queue_client.send_message(message, message_id)
 
 
-class TestLastProcessedEventIdRepo(unittest.TestCase):
+class TestLastProcessedEventIdRepo(TestCase):
 
     def setUp(self) -> None:
         s3 = boto3.client('s3')
@@ -98,7 +98,7 @@ class TestLastProcessedEventIdRepo(unittest.TestCase):
         self._repo.put_last_event_id(the_id)
 
 
-class TestDMMEventsClient(unittest.TestCase):
+class TestDMMEventsClient(TestCase):
     _base_url = 'https://dmm-url.com'
     _last_event_id = '123'
     _api_key = 'supersecret'
@@ -127,8 +127,8 @@ class TestDMMEventsClient(unittest.TestCase):
         else:
             return TestDMMEventsClient.MockResponse(None, 200)
 
-    @mock.patch('requests.get',
-                mock.Mock(side_effect=mock_get_events_without_last_event_id))
+    @patch('requests.get',
+           Mock(side_effect=mock_get_events_without_last_event_id))
     def test_get_events_without_last_event_id(self) -> None:
         self.assertEqual(sentinel.expected, self._client.get_events(None))
 
@@ -145,8 +145,7 @@ class TestDMMEventsClient(unittest.TestCase):
         else:
             return TestDMMEventsClient.MockResponse(None, 200)
 
-    @mock.patch('requests.get',
-                mock.Mock(side_effect=mock_get_events_with_last_event_id))
+    @patch('requests.get', Mock(side_effect=mock_get_events_with_last_event_id))
     def test_get_events_with_last_event_id(self) -> None:
         self.assertEqual(sentinel.expected,
                          self._client.get_events(self._last_event_id))
@@ -158,7 +157,7 @@ class TestDMMEventsClient(unittest.TestCase):
         else:
             return TestDMMEventsClient.MockResponse(None, 200)
 
-    @mock.patch('requests.get', mock.Mock(side_effect=mock_get_events_api_key))
+    @patch('requests.get', Mock(side_effect=mock_get_events_api_key))
     def test_get_events_api_key(self) -> None:
         client = DMMEventsClient(self._base_url, 'wrong api key')
         with self.assertRaises(Exception):
@@ -171,13 +170,12 @@ class TestDMMEventsClient(unittest.TestCase):
         else:
             return TestDMMEventsClient.MockResponse(sentinel.expected, 200)
 
-    @mock.patch('requests.get',
-                mock.Mock(side_effect=mock_get_events_accept_header))
+    @patch('requests.get', Mock(side_effect=mock_get_events_accept_header))
     def test_get_events_accept_header(self) -> None:
         self.assertEqual(sentinel.expected, self._client.get_events(None))
 
 
-class TestSecrets(unittest.TestCase):
+class TestSecrets(TestCase):
     _secret_name = 'a_name'
     _secret_value = 'hi!_i_am_secret'
 
@@ -203,6 +201,10 @@ class TestSecrets(unittest.TestCase):
 
         self.assertEqual(self._secret_value,
                          self._secrets.get_secret(self._secret_name))
+
+
+class TestFeedProcessor(TestCase):
+    pass
 
 
 if __name__ == '__main__':
