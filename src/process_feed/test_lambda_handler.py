@@ -2,6 +2,7 @@ import json
 import unittest
 from io import BytesIO
 from unittest import mock
+from unittest.mock import sentinel
 
 import boto3
 from botocore.response import StreamingBody
@@ -122,14 +123,14 @@ class TestDMMEventsClient(unittest.TestCase):
         expected_url = '{}/api/events'.format(TestDMMEventsClient._base_url)
 
         if kwargs['url'] == expected_url:
-            return TestDMMEventsClient.MockResponse([{id: '123'}], 200)
+            return TestDMMEventsClient.MockResponse(sentinel.expected, 200)
         else:
-            return TestDMMEventsClient.MockResponse([], 200)
+            return TestDMMEventsClient.MockResponse(None, 200)
 
     @mock.patch('requests.get',
                 mock.Mock(side_effect=mock_get_events_without_last_event_id))
     def test_get_events_without_last_event_id(self) -> None:
-        self.assertEqual([{id: '123'}], self._client.get_events(None))
+        self.assertEqual(sentinel.expected, self._client.get_events(None))
 
     @staticmethod
     def mock_get_events_with_last_event_id(**kwargs) -> MockResponse:
@@ -140,21 +141,22 @@ class TestDMMEventsClient(unittest.TestCase):
             )
 
         if kwargs['url'] == expected_url:
-            return TestDMMEventsClient.MockResponse([], 200)
+            return TestDMMEventsClient.MockResponse(sentinel.expected, 200)
         else:
-            return TestDMMEventsClient.MockResponse([{id: '123'}], 200)
+            return TestDMMEventsClient.MockResponse(None, 200)
 
     @mock.patch('requests.get',
                 mock.Mock(side_effect=mock_get_events_with_last_event_id))
     def test_get_events_with_last_event_id(self) -> None:
-        self.assertEqual([], self._client.get_events(self._last_event_id))
+        self.assertEqual(sentinel.expected,
+                         self._client.get_events(self._last_event_id))
 
     @staticmethod
     def mock_get_events_api_key(**kwargs) -> MockResponse:
         if kwargs['headers']['x-api-key'] != TestDMMEventsClient._api_key:
             return TestDMMEventsClient.MockResponse(None, 403)
         else:
-            return TestDMMEventsClient.MockResponse([], 200)
+            return TestDMMEventsClient.MockResponse(None, 200)
 
     @mock.patch('requests.get', mock.Mock(side_effect=mock_get_events_api_key))
     def test_get_events_api_key(self) -> None:
@@ -167,12 +169,12 @@ class TestDMMEventsClient(unittest.TestCase):
         if kwargs['headers']['accept'] != 'application/cloudevents-batch+json':
             return TestDMMEventsClient.MockResponse(None, 400)
         else:
-            return TestDMMEventsClient.MockResponse([], 200)
+            return TestDMMEventsClient.MockResponse(sentinel.expected, 200)
 
     @mock.patch('requests.get',
                 mock.Mock(side_effect=mock_get_events_accept_header))
     def test_get_events_accept_header(self) -> None:
-        self.assertEqual([], self._client.get_events(None))
+        self.assertEqual(sentinel.expected, self._client.get_events(None))
 
 
 class TestSecrets(unittest.TestCase):
