@@ -9,6 +9,17 @@ resource "aws_lambda_function" "process_feed_lambda_function" {
   timeout       = 60
   runtime       = "python3.10"
   architectures = ["arm64"]
+
+  environment {
+    variables = {
+      aws_account_id            = data.aws_caller_identity.current.account_id
+      dmm_base_url              = local.dmm_base_url
+      dmm_api_key_secret_name   = local.dmm_api_key_secret_name
+      sqs_queue_name            = var.event_queue_name
+      bucket_name               = var.bucket_name
+      last_event_id_object_name = local.last_event_id_object_name
+    }
+  }
 }
 
 # trigger process feed lambda every minute

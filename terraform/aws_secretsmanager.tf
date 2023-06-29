@@ -1,7 +1,7 @@
 # create secret for data mesh manager in secretsmanager
 
 resource "aws_secretsmanager_secret" "dmm_api_key" {
-  name                           = "${var.secrets_manager_prefix}api_key"
+  name                           = local.dmm_api_key_secret_name
   force_overwrite_replica_secret = true # make sure to override secret
   recovery_window_in_days        = 0    # force deletion on destroy
 }

@@ -1,5 +1,6 @@
 import json
 import logging
+from os import environ
 from typing import TypeAlias
 
 import boto3
@@ -12,13 +13,13 @@ DMMEvent: TypeAlias = dict[str, str | dict[str]]
 def lambda_handler(event, context) -> None:
     logging.getLogger().setLevel(logging.INFO)
 
-    # parameters: todo: pass from outside
-    dmm_base_url = 'https://app.datamesh-manager.com/api/events'
-    dmm_api_key_secret_name = 'dmm_integration__api_key'
-    aws_account_id = context.invoked_function_arn.split(":")[4]
-    sqs_queue_name = 'dmm-events.fifo'
-    bucket_name = 'dmm-integration'
-    last_event_id_object_name = 'process_feed/last_event_id'
+    # get configuration
+    aws_account_id = environ['aws_account_id']
+    dmm_base_url = environ['dmm_base_url']
+    dmm_api_key_secret_name = environ['dmm_api_key_secret_name']
+    sqs_queue_name = environ['sqs_queue_name']
+    bucket_name = environ['bucket_name']
+    last_event_id_object_name = environ['last_event_id_object_name']
 
     # create client for target queue in sqs
     sqs = boto3.client('sqs')
