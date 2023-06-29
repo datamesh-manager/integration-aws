@@ -111,8 +111,10 @@ class DMMEventsClient:
         return response.json()
 
     def _events_url(self, last_event_id: str | None) -> str:
-        return self._base_url if last_event_id is None \
-            else '{url}?lastEventId={id}'.format(url=self._base_url,
+        events_url = '{}/api/events'.format(self._base_url)
+
+        return events_url if last_event_id is None \
+            else '{url}?lastEventId={id}'.format(url=events_url,
                                                  id=last_event_id)
 
 

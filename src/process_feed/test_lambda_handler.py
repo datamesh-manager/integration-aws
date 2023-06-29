@@ -1,12 +1,14 @@
 import json
 import unittest
 from io import BytesIO
+from unittest import mock
 
 import boto3
 from botocore.response import StreamingBody
 from botocore.stub import Stubber
 
-from lambda_handler import TargetQueueClient, LastProcessedEventIdRepo
+from lambda_handler import TargetQueueClient, LastProcessedEventIdRepo, \
+    DMMEventsClient
 
 
 class TestTargetQueueClient(unittest.TestCase):
@@ -93,6 +95,84 @@ class TestLastProcessedEventIdRepo(unittest.TestCase):
         self._s3_stubber.activate()
 
         self._repo.put_last_event_id(the_id)
+
+
+class TestDMMEventsClient(unittest.TestCase):
+    _base_url = 'https://dmm-url.com'
+    _last_event_id = '123'
+    _api_key = 'supersecret'
+
+    def setUp(self) -> None:
+        self._client = DMMEventsClient(self._base_url, self._api_key)
+
+    class MockResponse:
+        def __init__(self, body, status):
+            self._body = body
+            self._status = status
+
+        def json(self) -> str:
+            return self._body
+
+        def raise_for_status(self) -> None:
+            if self._status >= 400:
+                raise Exception()
+
+    @staticmethod
+    def mock_get_events_without_last_event_id(**kwargs) -> MockResponse:
+        expected_url = '{}/api/events'.format(TestDMMEventsClient._base_url)
+
+        if kwargs['url'] == expected_url:
+            return TestDMMEventsClient.MockResponse([{id: '123'}], 200)
+        else:
+            return TestDMMEventsClient.MockResponse([], 200)
+
+    @mock.patch('requests.get',
+                mock.Mock(side_effect=mock_get_events_without_last_event_id))
+    def test_get_events_without_last_event_id(self) -> None:
+        self.assertEqual([{id: '123'}], self._client.get_events(None))
+
+    @staticmethod
+    def mock_get_events_with_last_event_id(**kwargs) -> MockResponse:
+        expected_url = \
+            '{base_url}/api/events?lastEventId={last_event_id}'.format(
+                base_url=TestDMMEventsClient._base_url,
+                last_event_id=TestDMMEventsClient._last_event_id
+            )
+
+        if kwargs['url'] == expected_url:
+            return TestDMMEventsClient.MockResponse([], 200)
+        else:
+            return TestDMMEventsClient.MockResponse([{id: '123'}], 200)
+
+    @mock.patch('requests.get',
+                mock.Mock(side_effect=mock_get_events_with_last_event_id))
+    def test_get_events_with_last_event_id(self) -> None:
+        self.assertEqual([], self._client.get_events(self._last_event_id))
+
+    @staticmethod
+    def mock_get_events_api_key(**kwargs) -> MockResponse:
+        if kwargs['headers']['x-api-key'] != TestDMMEventsClient._api_key:
+            return TestDMMEventsClient.MockResponse(None, 403)
+        else:
+            return TestDMMEventsClient.MockResponse([], 200)
+
+    @mock.patch('requests.get', mock.Mock(side_effect=mock_get_events_api_key))
+    def test_get_events_api_key(self) -> None:
+        client = DMMEventsClient(self._base_url, 'wrong api key')
+        with self.assertRaises(Exception):
+            client.get_events(None)
+
+    @staticmethod
+    def mock_get_events_accept_header(**kwargs) -> MockResponse:
+        if kwargs['headers']['accept'] != 'application/cloudevents-batch+json':
+            return TestDMMEventsClient.MockResponse(None, 400)
+        else:
+            return TestDMMEventsClient.MockResponse([], 200)
+
+    @mock.patch('requests.get',
+                mock.Mock(side_effect=mock_get_events_accept_header))
+    def test_get_events_accept_header(self) -> None:
+        self.assertEqual([], self._client.get_events(None))
 
 
 if __name__ == '__main__':
