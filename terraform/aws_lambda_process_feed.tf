@@ -6,7 +6,7 @@ resource "aws_lambda_function" "process_feed_lambda_function" {
   function_name = "DMM_integration__process_feed"
   role          = aws_iam_role.process_feed_iam_role.arn
   handler       = "lambda_handler.lambda_handler"
-  timeout       = 60
+  timeout       = 59
   runtime       = "python3.10"
   architectures = ["arm64"]
 
