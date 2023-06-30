@@ -1,11 +1,14 @@
+import json
 import unittest
+from datetime import datetime
 from unittest import TestCase
 from unittest.mock import patch, sentinel, Mock
 
 import boto3
 from botocore.stub import Stubber
 
-from lambda_handler import Secrets, DMMClient
+from lambda_handler import Secrets, DMMClient, AccessManager, \
+    UnsupportedServiceException
 
 
 class TestDMMClient(TestCase):
@@ -147,6 +150,103 @@ class TestSecrets(TestCase):
 
         self.assertEqual(self._secret_value,
                          self._secrets.get_secret(self._secret_name))
+
+
+class TestAccessManager(TestCase):
+    _datacontract_id = '123-123-321'
+    _consumer_group_name = 'hi_iam_a_consumer_group'
+    _output_port_arn = 'arn:aws:s3:one:two:three'
+    _policy_arn = 'arn:aws:policy:one:two:three'
+
+    def setUp(self) -> None:
+        iam = boto3.client('iam')
+        resource_explorer = boto3.client('resource-explorer-2')
+
+        self._iam_stubber = Stubber(iam)
+        self._resource_explorer_stubber = Stubber(resource_explorer)
+        self._access_manager = AccessManager(iam, resource_explorer)
+
+    def tearDown(self) -> None:
+        self._iam_stubber.deactivate()
+        self._resource_explorer_stubber.deactivate()
+
+    def test_grant_access_s3(self) -> None:
+        expected_document = {
+            'Version': datetime.today().strftime('%Y-%m-%d'),
+            'Statement': [
+                {
+                    'Effect': 'Allow',
+                    'Action': [
+                        's3:GetBucketLocation',
+                        's3:GetObject',
+                        's3:ListBucket'
+                    ],
+                    'Resource': [
+                        self._output_port_arn,
+                        '{}/*'.format(self._output_port_arn)
+                    ]
+                }
+            ]
+        }
+
+        self._stub_create_policy(expected_document)
+        self._stub_attach_group_policy()
+
+        self._iam_stubber.activate()
+
+        self._access_manager.grant_access(self._datacontract_id,
+                                          self._consumer_group_name,
+                                          self._output_port_arn)
+
+        self._iam_stubber.assert_no_pending_responses()
+
+    def _stub_create_policy(self, expected_document):
+        self._iam_stubber.add_response(
+            'create_policy',
+            {
+                'Policy': {
+                    'Arn': self._policy_arn
+                }
+            },
+            {
+                'PolicyName': 'DMM Datacontract {}'.format(
+                    self._datacontract_id),
+                'PolicyDocument': json.dumps(expected_document),
+                'Tags': [
+                    {
+                        'Key': 'managed-by',
+                        'Value': 'dmm-integration'
+                    },
+                    {
+                        'Key': 'dmm-integration-contract',
+                        'Value': self._datacontract_id
+                    }
+                ]
+            }
+        )
+
+    def _stub_attach_group_policy(self):
+        expected_params = {
+            'GroupName': self._consumer_group_name,
+            'PolicyArn': self._policy_arn
+        }
+        self._iam_stubber.add_response(
+            'attach_group_policy',
+            {},
+            expected_params
+        )
+
+    def test_grant_access_unsupported(self) -> None:
+        with self.assertRaises(UnsupportedServiceException):
+            self._access_manager.grant_access(self._datacontract_id,
+                                              self._consumer_group_name,
+                                              "aws:arn:iam:one:two:three")
+
+    def test_remove_access(self) -> None:
+        pass
+
+    def test_remove_access_policy_not_found(self) -> None:
+        pass
 
 
 if __name__ == '__main__':

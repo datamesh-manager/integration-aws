@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 from typing import TypeAlias
 
 import boto3
@@ -12,6 +13,9 @@ DataProduct: TypeAlias = dict[str, dict[str, str] | list[Port]]
 
 def lambda_handler(event, context):
     logging.getLogger().setLevel(logging.INFO)
+
+    resource_explorer = boto3.client('resource-explorer-2')
+    iam = boto3.client('iam')
 
     dmm_events = list(map(lambda e: json.loads(e['body']), event['Records']))
 
@@ -99,3 +103,90 @@ class Secrets:
             self._secretsmanager.get_secret_value(SecretId=secret_name)
 
         return get_secret_value_response['SecretString']
+
+
+class AccessManager:
+    def __init__(self, iam, resource_explorer):
+        self._iam = iam
+        self._resource_explorer = resource_explorer
+
+    def remove_access(self, datacontract_id: str):
+        pass
+
+    # todo: add permissions based on output port (supports only s3 for now)
+    def grant_access(self,
+        datacontract_id: str,
+        consumer_group_name: str,
+        output_port_arn: str):
+
+        policy = {
+            'Version': self._policy_version(),
+            'Statement': self._policy_statements(output_port_arn)
+        }
+
+        self._grant_access(datacontract_id, consumer_group_name, policy)
+
+    # create required policy statements based on the service defined in arn
+    def _policy_statements(self, output_port_arn):
+        output_port_service_name = output_port_arn.split(':')[2]
+        match output_port_service_name:
+            case 's3':
+                policy_statements = [self._s3_statement(output_port_arn)]
+            case _:
+                raise UnsupportedServiceException(output_port_service_name)
+        return policy_statements
+
+    def _grant_access(self,
+        datacontract_id: str,
+        consumer_group_name: str,
+        policy_document: dict):
+
+        # create policy
+        create_policy_result = self._iam.create_policy(
+            PolicyName='DMM Datacontract {}'.format(datacontract_id),
+            PolicyDocument=json.dumps(policy_document),
+            Tags=[self.managed_by_tag(), self._contract_id_tag(datacontract_id)]
+        )
+        # attach it to the consumer iam group
+        self._iam.attach_group_policy(
+            GroupName=consumer_group_name,
+            PolicyArn=create_policy_result['Policy']['Arn']
+        )
+
+    @staticmethod
+    def _s3_statement(output_port_arn: str) -> dict:
+        return {
+            'Effect': 'Allow',
+            'Action': [
+                's3:GetBucketLocation',
+                's3:GetObject',
+                's3:ListBucket'
+            ],
+            'Resource': [
+                output_port_arn,
+                '{}/*'.format(output_port_arn)
+            ]
+        }
+
+    @staticmethod
+    def managed_by_tag() -> dict[str, str]:
+        return {
+            'Key': 'managed-by',
+            'Value': 'dmm-integration'
+        }
+
+    @staticmethod
+    def _contract_id_tag(datacontract_id: str) -> dict[str, str]:
+        return {
+            'Key': 'dmm-integration-contract',
+            'Value': datacontract_id
+        }
+
+    @staticmethod
+    def _policy_version() -> str:
+        return datetime.today().strftime('%Y-%m-%d')
+
+
+class UnsupportedServiceException(Exception):
+    def __init__(self, service_name):
+        super().__init__("Unsupported service: {}".format(service_name))
