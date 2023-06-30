@@ -53,8 +53,12 @@ def process_deactivated_event(event):
     logging.info('Deactivated: {}'.format(event['id']))
 
 
-def dmm_api_key(secret_name: str) -> str:
-    client = boto3.client('secretsmanager')
-    get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+class Secrets:
+    def __init__(self, secretsmanager):
+        self._secretsmanager = secretsmanager
 
-    return get_secret_value_response['SecretString']
+    def get_secret(self, secret_name: str) -> str:
+        get_secret_value_response = \
+            self._secretsmanager.get_secret_value(SecretId=secret_name)
+
+        return get_secret_value_response['SecretString']
