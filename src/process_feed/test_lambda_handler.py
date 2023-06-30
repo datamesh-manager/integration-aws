@@ -279,8 +279,6 @@ class TestFeedProcessor(TestCase):
 
         self.assertEqual(expected, result)
 
-
-
     def test_process_new_events__existing_event_id(self) -> None:
         # override get_last_event_id mock
         self._last_processed_event_id_repo_mock.get_last_event_id = \
