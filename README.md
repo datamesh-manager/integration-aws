@@ -5,8 +5,44 @@ It uses only serverless AWS functionality like Lambda, CloudWatch, S3, Secretsma
 The infrastructure is set up by using [Terraform](https://www.terraform.io/).
 
 ## Architecture
+For a better understanding of how the integration works, see this simple architecture diagram. Arrows show access direction.
 
-TBD
+```
+                                       ┌─────────────────┐
+                                       │                 │
+                                       │Data Mesh Manager│
+                                       │                 │
+                                       └─────────────────┘
+                                          ▲           ▲
+                                          │           │
+                                          │           │
+┌─────────────────────────────────────────┼───────────┼─────────────────────────────────────────┐
+│                                         │           │                                         │
+│                                         │           │                                         │
+│                     pull events         │           │ read contract information               │
+│              ┌──────────────────────────┘           └──────────────────────────┐              │
+│              │                                                                 │              │
+│              │                                                                 │              │
+│              │                                                                 │              │
+│     ┌────────┴────────┐                ──────────── ──                ┌────────┴────────┐     │
+│     │  process_feed   │     write     │ dmm_events │  │    trigger    │ process_events  │     │
+│     │                 ├──────────────►│            │  ├──────────────►│                 │     │
+│     │[Lambda Function]│               │ [SQS Queue]│  │               │[Lambda Function]│     │
+│     └─────────────────┘                ──────────── ──                └────────┬────────┘     │
+│                                                                                │              │
+│                                                                                │manage        │
+│                                                                                │              │
+│                                                                                ▼              │
+│                                                                        ┌────────────────┐     │
+│                                                                        │                │     │
+│                                                                        │  IAM Policies  │     │
+│                                                                        │                │     │
+│                                                                        └────────────────┘     │
+│                                                                                               │
+│                                                                                               │
+│                                                                              [AWS Integration]│
+└───────────────────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ## Lambdas
 ### [Process Feed](src%2Fprocess_feed%2Flambda_handler.py)
