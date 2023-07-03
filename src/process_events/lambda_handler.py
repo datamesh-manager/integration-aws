@@ -114,9 +114,10 @@ class AccessManager:
         pass
 
     # todo: add permissions based on output port (supports only s3 for now)
+    # todo: check if permission already exists to stay idempotent
     def grant_access(self,
         datacontract_id: str,
-        consumer_group_name: str,
+        consumer_role_name: str,
         output_port_arn: str):
 
         policy = {
@@ -124,7 +125,7 @@ class AccessManager:
             'Statement': self._policy_statements(output_port_arn)
         }
 
-        self._grant_access(datacontract_id, consumer_group_name, policy)
+        self._grant_access(datacontract_id, consumer_role_name, policy)
 
     # create required policy statements based on the service defined in arn
     def _policy_statements(self, output_port_arn):
@@ -138,7 +139,7 @@ class AccessManager:
 
     def _grant_access(self,
         datacontract_id: str,
-        consumer_group_name: str,
+        consumer_role_name: str,
         policy_document: dict):
 
         # create policy
@@ -147,9 +148,9 @@ class AccessManager:
             PolicyDocument=json.dumps(policy_document),
             Tags=[self.managed_by_tag(), self._contract_id_tag(datacontract_id)]
         )
-        # attach it to the consumer iam group
-        self._iam.attach_group_policy(
-            GroupName=consumer_group_name,
+        # attach it to the consumer iam role
+        self._iam.attach_role_policy(
+            RoleName=consumer_role_name,
             PolicyArn=create_policy_result['Policy']['Arn']
         )
 

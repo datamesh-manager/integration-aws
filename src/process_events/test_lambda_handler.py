@@ -154,7 +154,7 @@ class TestSecrets(TestCase):
 
 class TestAccessManager(TestCase):
     _datacontract_id = '123-123-321'
-    _consumer_group_name = 'hi_iam_a_consumer_group'
+    _consumer_role_name = 'hi_iam_a_consumer_role'
     _output_port_arn = 'arn:aws:s3:one:two:three'
     _policy_arn = 'arn:aws:policy:one:two:three'
 
@@ -190,12 +190,12 @@ class TestAccessManager(TestCase):
         }
 
         self._stub_create_policy(expected_document)
-        self._stub_attach_group_policy()
+        self._stub_attach_role_policy()
 
         self._iam_stubber.activate()
 
         self._access_manager.grant_access(self._datacontract_id,
-                                          self._consumer_group_name,
+                                          self._consumer_role_name,
                                           self._output_port_arn)
 
         self._iam_stubber.assert_no_pending_responses()
@@ -225,13 +225,13 @@ class TestAccessManager(TestCase):
             }
         )
 
-    def _stub_attach_group_policy(self):
+    def _stub_attach_role_policy(self):
         expected_params = {
-            'GroupName': self._consumer_group_name,
+            'RoleName': self._consumer_role_name,
             'PolicyArn': self._policy_arn
         }
         self._iam_stubber.add_response(
-            'attach_group_policy',
+            'attach_role_policy',
             {},
             expected_params
         )
@@ -239,7 +239,7 @@ class TestAccessManager(TestCase):
     def test_grant_access_unsupported(self) -> None:
         with self.assertRaises(UnsupportedServiceException):
             self._access_manager.grant_access(self._datacontract_id,
-                                              self._consumer_group_name,
+                                              self._consumer_role_name,
                                               "aws:arn:iam:one:two:three")
 
     def test_remove_access(self) -> None:
