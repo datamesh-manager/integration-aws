@@ -113,19 +113,31 @@ class AccessManager:
     def remove_access(self, datacontract_id: str):
         pass
 
-    # todo: add permissions based on output port (supports only s3 for now)
-    # todo: check if permission already exists to stay idempotent
     def grant_access(self,
         datacontract_id: str,
         consumer_role_name: str,
-        output_port_arn: str):
+        output_port_arn: str) -> str:
+        """Gives access to an AWS resource and returns the arn of the
+        corresponding policy
 
+        - works only for S3 buckets at this point -
+        """
+
+        # return existing policy arn if one exists for parameters
+        existing_policy_arn = \
+            self._search_existing_policy_for_contract(datacontract_id)
+        if existing_policy_arn is not None:
+            logging.info('Policy for datacontract {} exists already'
+                         .format(datacontract_id))
+            return existing_policy_arn
+
+        # otherwise create policy and attach to role
         policy = {
             'Version': self._policy_version(),
             'Statement': self._policy_statements(output_port_arn)
         }
 
-        self._grant_access(datacontract_id, consumer_role_name, policy)
+        return self._grant_access(datacontract_id, consumer_role_name, policy)
 
     # create required policy statements based on the service defined in arn
     def _policy_statements(self, output_port_arn):
@@ -140,19 +152,33 @@ class AccessManager:
     def _grant_access(self,
         datacontract_id: str,
         consumer_role_name: str,
-        policy_document: dict):
-
+        policy_document: dict) -> str:
         # create policy
         create_policy_result = self._iam.create_policy(
             PolicyName='DMM Datacontract {}'.format(datacontract_id),
             PolicyDocument=json.dumps(policy_document),
             Tags=[self.managed_by_tag(), self._contract_id_tag(datacontract_id)]
         )
+
         # attach it to the consumer iam role
         self._iam.attach_role_policy(
             RoleName=consumer_role_name,
             PolicyArn=create_policy_result['Policy']['Arn']
         )
+
+        return create_policy_result['Policy']['Arn']
+
+    def _search_existing_policy_for_contract(self,
+        datacontract_id) -> str | None:
+        search_result = self._resource_explorer.search(
+            QueryString='tag:managed-by=dmm-integration AND '
+                        'tag:dmm-integration-contract=' + datacontract_id,
+            MaxResults=1)
+        assert search_result['Count']['TotalResources'] <= 1
+        if search_result['Count']['TotalResources'] == 1:
+            return search_result['Resources'][0]['Arn']
+        else:
+            return None
 
     @staticmethod
     def _s3_statement(output_port_arn: str) -> dict:

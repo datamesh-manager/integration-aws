@@ -155,7 +155,7 @@ class TestSecrets(TestCase):
 class TestAccessManager(TestCase):
     _datacontract_id = '123-123-321'
     _consumer_role_name = 'hi_iam_a_consumer_role'
-    _output_port_arn = 'arn:aws:s3:one:two:three'
+    _s3_output_port_arn = 'arn:aws:s3:one:two:three'
     _policy_arn = 'arn:aws:policy:one:two:three'
 
     def setUp(self) -> None:
@@ -170,6 +170,67 @@ class TestAccessManager(TestCase):
         self._iam_stubber.deactivate()
         self._resource_explorer_stubber.deactivate()
 
+    def test_grant_access_unsupported(self) -> None:
+        self._stub_resource_search_with_empty_result()
+        self._resource_explorer_stubber.activate()
+        with self.assertRaises(UnsupportedServiceException):
+            self._access_manager.grant_access(self._datacontract_id,
+                                              self._consumer_role_name,
+                                              "aws:arn:iam:one:two:three")
+
+    def test_grant_access_too_many_results(self) -> None:
+        self._resource_explorer_stubber.add_response(
+            'search',
+            {
+                'Count': {
+                    'TotalResources': 2
+                },
+                'Resources': [
+                    {'Arn': self._policy_arn}
+                ]
+            },
+            {
+                'MaxResults': 1,
+                'QueryString': 'tag:managed-by=dmm-integration AND '
+                               'tag:dmm-integration-contract=' +
+                               self._datacontract_id
+            }
+        )
+        self._resource_explorer_stubber.activate()
+
+        with self.assertRaises(AssertionError):
+            self._access_manager.grant_access(self._datacontract_id,
+                                              self._consumer_role_name,
+                                              self._s3_output_port_arn)
+
+    def test_grant_access_policy_exists_already(self) -> None:
+        self._resource_explorer_stubber.add_response(
+            'search',
+            {
+                'Count': {
+                    'TotalResources': 1
+                },
+                'Resources': [
+                    {
+                        'Arn': self._policy_arn
+                    }
+                ]
+            },
+            {
+                'MaxResults': 1,
+                'QueryString': 'tag:managed-by=dmm-integration AND '
+                               'tag:dmm-integration-contract=' +
+                               self._datacontract_id
+            }
+        )
+        self._resource_explorer_stubber.activate()
+
+        result = self._access_manager.grant_access(self._datacontract_id,
+                                                   self._consumer_role_name,
+                                                   self._s3_output_port_arn)
+
+        self.assertEqual(self._policy_arn, result)
+
     def test_grant_access_s3(self) -> None:
         expected_document = {
             'Version': datetime.today().strftime('%Y-%m-%d'),
@@ -182,8 +243,8 @@ class TestAccessManager(TestCase):
                         's3:ListBucket'
                     ],
                     'Resource': [
-                        self._output_port_arn,
-                        '{}/*'.format(self._output_port_arn)
+                        self._s3_output_port_arn,
+                        '{}/*'.format(self._s3_output_port_arn)
                     ]
                 }
             ]
@@ -192,13 +253,36 @@ class TestAccessManager(TestCase):
         self._stub_create_policy(expected_document)
         self._stub_attach_role_policy()
 
-        self._iam_stubber.activate()
+        self._stub_resource_search_with_empty_result()
 
-        self._access_manager.grant_access(self._datacontract_id,
-                                          self._consumer_role_name,
-                                          self._output_port_arn)
+        self._iam_stubber.activate()
+        self._resource_explorer_stubber.activate()
+
+        result = self._access_manager.grant_access(self._datacontract_id,
+                                                   self._consumer_role_name,
+                                                   self._s3_output_port_arn)
+
+        self.assertEqual(self._policy_arn, result)
 
         self._iam_stubber.assert_no_pending_responses()
+        self._resource_explorer_stubber.assert_no_pending_responses()
+
+    def _stub_resource_search_with_empty_result(self):
+        self._resource_explorer_stubber.add_response(
+            'search',
+            {
+                'Count': {
+                    'TotalResources': 0
+                },
+                'Resources': []
+            },
+            {
+                'MaxResults': 1,
+                'QueryString': 'tag:managed-by=dmm-integration AND '
+                               'tag:dmm-integration-contract=' +
+                               self._datacontract_id
+            }
+        )
 
     def _stub_create_policy(self, expected_document):
         self._iam_stubber.add_response(
@@ -235,12 +319,6 @@ class TestAccessManager(TestCase):
             {},
             expected_params
         )
-
-    def test_grant_access_unsupported(self) -> None:
-        with self.assertRaises(UnsupportedServiceException):
-            self._access_manager.grant_access(self._datacontract_id,
-                                              self._consumer_role_name,
-                                              "aws:arn:iam:one:two:three")
 
     def test_remove_access(self) -> None:
         pass
