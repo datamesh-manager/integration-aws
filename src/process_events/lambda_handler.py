@@ -111,7 +111,25 @@ class AccessManager:
         self._resource_explorer = resource_explorer
 
     def remove_access(self, datacontract_id: str):
-        pass
+        policy_arn = self._search_policy_for_contract(datacontract_id)
+        if policy_arn is None:
+            logging.warning('Policy for contract {} not found '
+                            'while trying to remove access.'
+                            .format(datacontract_id))
+        else:
+            role_name = self._get_single_policy_role_name(policy_arn)
+            self._iam.detach_role_policy(RoleName=role_name,
+                                         PolicyArn=policy_arn)
+            self._iam.delete_policy(PolicyArn=policy_arn)
+
+    def _get_single_policy_role_name(self, policy_arn):
+        response = self._iam.list_entities_for_policy(PolicyArn=policy_arn,
+                                                      MaxItems=1)
+        assert len(response['PolicyGroups']) == 0
+        assert len(response['PolicyUsers']) == 0
+        assert len(response['PolicyRoles']) == 1
+
+        return response['PolicyRoles'][0]['RoleName']
 
     def grant_access(self,
         datacontract_id: str,
@@ -124,8 +142,7 @@ class AccessManager:
         """
 
         # return existing policy arn if one exists for parameters
-        existing_policy_arn = \
-            self._search_existing_policy_for_contract(datacontract_id)
+        existing_policy_arn = self._search_policy_for_contract(datacontract_id)
         if existing_policy_arn is not None:
             logging.info('Policy for datacontract {} exists already'
                          .format(datacontract_id))
@@ -168,7 +185,7 @@ class AccessManager:
 
         return create_policy_result['Policy']['Arn']
 
-    def _search_existing_policy_for_contract(self,
+    def _search_policy_for_contract(self,
         datacontract_id) -> str | None:
         search_result = self._resource_explorer.search(
             QueryString='tag:managed-by=dmm-integration AND '

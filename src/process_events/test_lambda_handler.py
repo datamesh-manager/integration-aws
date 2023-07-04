@@ -1,4 +1,5 @@
 import json
+import logging
 import unittest
 from datetime import datetime
 from unittest import TestCase
@@ -170,6 +171,59 @@ class TestAccessManager(TestCase):
         self._iam_stubber.deactivate()
         self._resource_explorer_stubber.deactivate()
 
+    def test_remove_access(self) -> None:
+        self._stub_resource_search_with_single_result()
+
+        self._iam_stubber.add_response(
+            'list_entities_for_policy',
+            {
+                'PolicyGroups': [],
+                'PolicyUsers': [],
+                'PolicyRoles': [
+                    {
+                        'RoleName': self._consumer_role_name,
+                    },
+                ]
+            },
+            {
+                'MaxItems': 1,
+                'PolicyArn': self._policy_arn
+            }
+        )
+
+        self._iam_stubber.add_response(
+            'detach_role_policy',
+            {},
+            {
+                'RoleName': self._consumer_role_name,
+                'PolicyArn': self._policy_arn
+            }
+        )
+
+        self._iam_stubber.add_response(
+            'delete_policy',
+            {},
+            {'PolicyArn': self._policy_arn}
+        )
+
+        self._resource_explorer_stubber.activate()
+        self._iam_stubber.activate()
+
+        self._access_manager.remove_access(self._datacontract_id)
+
+        self._iam_stubber.assert_no_pending_responses()
+
+    def test_remove_access_policy_not_found(self) -> None:
+        self._stub_resource_search_with_empty_result()
+        self._resource_explorer_stubber.activate()
+
+        with self.assertLogs(logger=None, level=logging.WARNING) as cm:
+            self._access_manager.remove_access(self._datacontract_id)
+            self.assertEqual(['WARNING:root:Policy for contract {} not found '
+                              'while trying to remove access.'
+                             .format(self._datacontract_id)],
+                             cm.output)
+
     def test_grant_access_unsupported(self) -> None:
         self._stub_resource_search_with_empty_result()
         self._resource_explorer_stubber.activate()
@@ -204,25 +258,7 @@ class TestAccessManager(TestCase):
                                               self._s3_output_port_arn)
 
     def test_grant_access_policy_exists_already(self) -> None:
-        self._resource_explorer_stubber.add_response(
-            'search',
-            {
-                'Count': {
-                    'TotalResources': 1
-                },
-                'Resources': [
-                    {
-                        'Arn': self._policy_arn
-                    }
-                ]
-            },
-            {
-                'MaxResults': 1,
-                'QueryString': 'tag:managed-by=dmm-integration AND '
-                               'tag:dmm-integration-contract=' +
-                               self._datacontract_id
-            }
-        )
+        self._stub_resource_search_with_single_result()
         self._resource_explorer_stubber.activate()
 
         result = self._access_manager.grant_access(self._datacontract_id,
@@ -266,6 +302,27 @@ class TestAccessManager(TestCase):
 
         self._iam_stubber.assert_no_pending_responses()
         self._resource_explorer_stubber.assert_no_pending_responses()
+
+    def _stub_resource_search_with_single_result(self):
+        self._resource_explorer_stubber.add_response(
+            'search',
+            {
+                'Count': {
+                    'TotalResources': 1
+                },
+                'Resources': [
+                    {
+                        'Arn': self._policy_arn
+                    }
+                ]
+            },
+            {
+                'MaxResults': 1,
+                'QueryString': 'tag:managed-by=dmm-integration AND '
+                               'tag:dmm-integration-contract=' +
+                               self._datacontract_id
+            }
+        )
 
     def _stub_resource_search_with_empty_result(self):
         self._resource_explorer_stubber.add_response(
@@ -319,12 +376,6 @@ class TestAccessManager(TestCase):
             {},
             expected_params
         )
-
-    def test_remove_access(self) -> None:
-        pass
-
-    def test_remove_access_policy_not_found(self) -> None:
-        pass
 
 
 if __name__ == '__main__':
