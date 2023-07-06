@@ -5,7 +5,6 @@ from unittest.mock import patch, sentinel, Mock
 
 import boto3
 from botocore.stub import Stubber
-from botocore.exceptions import ClientError
 
 from lambda_handler import Secrets, DMMClient, AWSIAMManager, EventHandler, \
     UnsupportedServiceException, RequiredCustomFieldNotSet
@@ -105,7 +104,7 @@ class TestDMMClient(TestCase):
 
         assert kwargs['headers']['x-api-key'] == TestDMMClient._api_key
         assert kwargs['url'] == expected_url
-        assert kwargs['body'] == expected_body
+        assert kwargs['json'] == expected_body
 
         return TestDMMClient.MockResponse(None, 200)
 
@@ -284,7 +283,7 @@ class TestEventHandler(TestCase):
     _output_port_id = '456-6454-545'
     _output_port_arn = 'arn:aws:service:output:port'
     _provider_dataproduct_id = 'qwer-321-qwer'
-    _policy_arn = 'arn:aws:iam:contract:policy'
+    _policy_name = 'DMM_Datacontract_asdf-123-asdf'
 
     _activated_event = {
         'id': _event_id,
@@ -314,7 +313,9 @@ class TestEventHandler(TestCase):
 
     def test_handle__deactivated(self) -> None:
         self._dmm_client.get_datacontract = \
-            self._test_handle__deactivated__mock_get_datacontract
+            self._mock_get_data_contract
+        self._dmm_client.get_dataproduct = \
+            self._mock_get_dataproduct
 
         event = {
             'id': self._event_id,
@@ -323,11 +324,13 @@ class TestEventHandler(TestCase):
         }
         self._event_handler.handle(event)
 
-        self._iam_manager.remove_access.assert_called_with(self._policy_arn)
+        self._iam_manager.remove_access.assert_called_with(
+            self._data_contract_id,
+            self._consumer_role_name)
 
     def test_handle__deactivated__contract_not_found(self) -> None:
         self._dmm_client.get_datacontract = \
-            self._test_handle__deactivated__mock_get_datacontract
+            self._mock_get_data_contract
 
         event = {
             'id': self._event_id,
@@ -338,17 +341,10 @@ class TestEventHandler(TestCase):
 
         self._iam_manager.remove_access.assert_not_called()
 
-    def _test_handle__deactivated__mock_get_datacontract(self,
-        datacontract_id: str):
-        if datacontract_id == self._data_contract_id:
-            return {'custom': {'aws-policy-arn': self._policy_arn}}
-        else:
-            return None
-
     def test_handle__activated(self) -> None:
         self._dmm_client.get_datacontract = self._mock_get_data_contract
         self._dmm_client.get_dataproduct = self._mock_get_dataproduct
-        self._iam_manager.grant_access.return_value = self._policy_arn
+        self._iam_manager.grant_access.return_value = self._policy_name
 
         self._event_handler.handle(self._activated_event)
 
@@ -359,20 +355,9 @@ class TestEventHandler(TestCase):
         self._dmm_client.patch_datacontract.assert_called_with(
             self._data_contract_id,
             {
-                'custom': {'aws-policy-arn': self._policy_arn}
+                'custom': {'aws-policy-name': self._policy_name}
             }
         )
-
-    def test_handle__activated__patch_failed(self) -> None:
-        self._dmm_client.get_datacontract = self._mock_get_data_contract
-        self._dmm_client.get_dataproduct = self._mock_get_dataproduct
-        self._dmm_client.patch_datacontract.side_effect = RuntimeError()
-        self._iam_manager.grant_access.return_value = self._policy_arn
-
-        with self.assertRaises(Exception):
-            self._event_handler.handle(self._activated_event)
-
-        self._iam_manager.remove_access.assert_called_with(self._policy_arn)
 
     def test_handle__activated__consumer_role_not_set(self) -> None:
         self._dmm_client.get_datacontract = self._mock_get_data_contract

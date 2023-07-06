@@ -93,7 +93,7 @@ class DMMClient:
             headers={'x-api-key': self._api_key,
                      'accept': 'application/json',
                      'Content-Type': 'application/json'},
-            body=body
+            json=body
         )
 
 
@@ -227,8 +227,10 @@ class EventHandler:
     def _deactivated_event(self, event: DMMEvent):
         datacontract = self._dmm_client.get_datacontract(event['data']['id'])
         # aws resource specific code from here
-        # if datacontract is not None:
-        self._aws_deactivated_event(datacontract)
+        if datacontract is not None:
+            consumer_dataproduct = self._dmm_client.get_dataproduct(
+                datacontract['consumer']['dataProductId'])
+            self._aws_deactivated_event(datacontract, consumer_dataproduct)
 
     def _activated_event(self, event: DMMEvent):
         datacontract_id = event['data']['id']
@@ -248,9 +250,13 @@ class EventHandler:
 
     # aws resource specific code from here
 
-    def _aws_deactivated_event(self, datacontract):
-        policy_arn = datacontract['custom']['aws-policy-arn']
-        self._aws_iam_manager.remove_access(policy_arn)
+    def _aws_deactivated_event(self,
+        datacontract: DataContract,
+        consumer_dataproduct: DataProduct):
+
+        datacontract_id = datacontract['info']['id']
+        consumer_role_name = self._aws_consumer_role_name(consumer_dataproduct)
+        self._aws_iam_manager.remove_access(datacontract_id, consumer_role_name)
 
     def _aws_activated_event(self,
         datacontract: DataContract,
@@ -258,32 +264,14 @@ class EventHandler:
         provider_dataproduct: DataProduct):
 
         datacontract_id = datacontract['info']['id']
-        policy_arn = None
 
         # grant access to aws_resource to consumer
-        try:
-            policy_arn = self._aws_grant_access(datacontract,
-                                                consumer_dataproduct,
-                                                provider_dataproduct)
-        except ClientError as e:
-            # todo: test
-            if e.response['Error']['Code'] == 'EntityAlreadyExists':
-                logging.info("Policy for contract {} already exists."
-                             .format(datacontract_id))
-            else:
-                raise e
+        policy_name = self._aws_grant_access(datacontract,
+                                            consumer_dataproduct,
+                                            provider_dataproduct)
 
-        # todo: test
-        # update datacontract in DMM
-        # if policy_arn is not None:
-        #     try:
-        #         self._aws_add_arn_to_datacontract(datacontract_id, policy_arn)
-        #     except Exception as e:
-        #         logging.warning('Failed to update DMM. Removing access ({}).'
-        #                         .format(datacontract_id))
-        #         # if anything goes wrong remove access and reraise exception
-        #         self._aws_iam_manager.remove_access(policy_arn)
-        #         raise e
+        self._dmm_client.patch_datacontract(datacontract_id, {
+            'custom': {'aws-policy-name': policy_name}})
 
     def _aws_grant_access(self,
         datacontract: DataContract,
@@ -300,10 +288,6 @@ class EventHandler:
             datacontract_id,
             consumer_role_name,
             output_port_arn)
-
-    def _aws_add_arn_to_datacontract(self, datacontract_id, policy_arn):
-        self._dmm_client.patch_datacontract(datacontract_id, {
-            'custom': {'aws-policy-arn': policy_arn}})
 
     @staticmethod
     def _aws_consumer_role_name(consumer_dataproduct: DataProduct):
