@@ -47,7 +47,7 @@ class DMMClient:
         self._api_key = api_key
 
     def get_datacontract(self, datacontract_id: str) -> DataContract | None:
-        response = self._get(self._get_datacontract_url(datacontract_id))
+        response = self._get(self._datacontract_url(datacontract_id))
 
         if response.status_code == 404:
             logging.warning(
@@ -57,12 +57,16 @@ class DMMClient:
             response.raise_for_status()
             return response.json()
 
-    def _get_datacontract_url(self, datacontract_id) -> str:
+    def patch_datacontract(self, datacontract_id: str, value: dict) -> None:
+        current = self.get_datacontract(datacontract_id)
+        self._put(self._datacontract_url(datacontract_id), {**current, **value})
+
+    def _datacontract_url(self, datacontract_id) -> str:
         return '{base_url}/api/datacontracts/{id}'.format(
             base_url=self._base_url, id=datacontract_id)
 
     def get_dataproduct(self, dataproduct_id) -> DataProduct | None:
-        response = self._get(self._get_dataproduct_url(dataproduct_id))
+        response = self._get(self._dataproduct_url(dataproduct_id))
 
         if response.status_code == 404:
             logging.warning(
@@ -72,7 +76,7 @@ class DMMClient:
             response.raise_for_status()
             return response.json()
 
-    def _get_dataproduct_url(self, dataproduct_id) -> str:
+    def _dataproduct_url(self, dataproduct_id) -> str:
         return '{base_url}/api/dataproducts/{id}'.format(
             base_url=self._base_url, id=dataproduct_id)
 
@@ -81,6 +85,15 @@ class DMMClient:
             url=url,
             headers={'x-api-key': self._api_key,
                      'accept': 'application/json'})
+
+    def _put(self, url, body):
+        return requests.put(
+            url=url,
+            headers={'x-api-key': self._api_key,
+                     'accept': 'application/json',
+                     'Content-Type': 'application/json'},
+            body=body
+        )
 
 
 class Secrets:

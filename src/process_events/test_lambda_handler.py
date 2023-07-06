@@ -81,6 +81,39 @@ class TestDMMClient(TestCase):
         self.assertEqual(sentinel.expected,
                          self._client.get_datacontract(self._datacontract_id))
 
+    # patch_datacontract
+
+    @staticmethod
+    def mock_get_datacontract__patch(**kwargs) -> MockResponse:
+        return TestDMMClient.MockResponse({
+            'key1': 'value1',
+            'key2': 'value2'
+        }, 200)
+
+    @staticmethod
+    def mock_put_datacontract__patch(**kwargs) -> MockResponse:
+        expected_url = '{base_url}/api/datacontracts/{id}'.format(
+            base_url=TestDMMClient._base_url,
+            id=TestDMMClient._datacontract_id)
+
+        expected_body = {
+            'key1': 'value1',
+            'key2': 'value2_updated',
+            'key3': 'value3'
+        }
+
+        assert kwargs['headers']['x-api-key'] == TestDMMClient._api_key
+        assert kwargs['url'] == expected_url
+        assert kwargs['body'] == expected_body
+
+        return TestDMMClient.MockResponse(None, 200)
+
+    @patch('requests.get', Mock(side_effect=mock_get_datacontract__patch))
+    @patch('requests.put', Mock(side_effect=mock_put_datacontract__patch))
+    def test_patch_datacontract(self) -> None:
+        value = {'key2': 'value2_updated', 'key3': 'value3'}
+        self._client.patch_datacontract(self._datacontract_id, value)
+
     # get_dataproduct
 
     @staticmethod
