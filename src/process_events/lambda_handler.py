@@ -6,6 +6,7 @@ from typing import TypeAlias
 
 import boto3
 import requests
+from botocore.exceptions import ClientError
 
 DataContract: TypeAlias = dict[str, dict[str, str]]
 Port: TypeAlias = dict[str, dict[str, str]]
@@ -111,66 +112,63 @@ class AWSIAMManager:
     def __init__(self, iam):
         self._iam = iam
 
-    def remove_access(self, policy_arn: str):
-        role_name = self._get_single_policy_role_name(policy_arn)
-        self._iam.detach_role_policy(RoleName=role_name,
-                                     PolicyArn=policy_arn)
-        self._iam.delete_policy(PolicyArn=policy_arn)
-
-    def _get_single_policy_role_name(self, policy_arn):
-        response = self._iam.list_entities_for_policy(PolicyArn=policy_arn,
-                                                      MaxItems=1)
-        assert len(response['PolicyGroups']) == 0
-        assert len(response['PolicyUsers']) == 0
-        assert len(response['PolicyRoles']) == 1
-
-        return response['PolicyRoles'][0]['RoleName']
+    def remove_access(self,
+        datacontract_id: str,
+        consumer_role_name: str):
+        try:
+            self._iam.delete_role_policy(
+                RoleName=consumer_role_name,
+                PolicyName=self._policy_name(datacontract_id), )
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'NoSuchEntityException':
+                logging.warning('Policy for {} not found.'
+                                .format(datacontract_id))
+            else:
+                raise e
 
     def grant_access(self,
         datacontract_id: str,
         consumer_role_name: str,
         output_port_arn: str) -> str:
-        """Gives access to an AWS resource and returns the arn of the
+        """Gives access to an AWS resource and returns the name of the
         corresponding policy
 
-        - works only for S3 buckets at this point -
+        works only for S3 buckets at this point
         """
-        policy = {
+
+        policy_name = self._policy_name(datacontract_id)
+        policy_document = self._policy_document(output_port_arn)
+
+        self._iam.put_role_policy(
+            RoleName=consumer_role_name,
+            PolicyName=policy_name,
+            PolicyDocument=json.dumps(policy_document)
+        )
+
+        return policy_name
+
+    @staticmethod
+    def _policy_name(datacontract_id: str) -> str:
+        return 'DMM_Datacontract_{}'.format(datacontract_id)
+
+    @staticmethod
+    def _policy_document(output_port_arn):
+        return {
             'Version': '2012-10-17',
-            'Statement': self._policy_statements(output_port_arn)
+            'Statement': AWSIAMManager._policy_statements(output_port_arn)
         }
 
-        return self._grant_access(datacontract_id, consumer_role_name, policy)
-
     # create required policy statements based on the service defined in arn
-    def _policy_statements(self, output_port_arn):
+    @staticmethod
+    def _policy_statements(output_port_arn):
         output_port_service_name = output_port_arn.split(':')[2]
         match output_port_service_name:
             case 's3':
-                policy_statements = [self._s3_statement(output_port_arn)]
+                policy_statements = [
+                    AWSIAMManager._s3_statement(output_port_arn)]
             case _:
                 raise UnsupportedServiceException(output_port_service_name)
         return policy_statements
-
-    def _grant_access(self,
-        datacontract_id: str,
-        consumer_role_name: str,
-        policy_document: dict) -> str:
-        # create policy
-        create_policy_result = self._iam.create_policy(
-            PolicyName='DMM_Datacontract_{}'.format(datacontract_id),
-            PolicyDocument=json.dumps(policy_document),
-            Tags=[self._managed_by_tag(),
-                  self._contract_id_tag(datacontract_id)]
-        )
-
-        # attach it to the consumer iam role
-        self._iam.attach_role_policy(
-            RoleName=consumer_role_name,
-            PolicyArn=create_policy_result['Policy']['Arn']
-        )
-
-        return create_policy_result['Policy']['Arn']
 
     @staticmethod
     def _s3_statement(output_port_arn: str) -> dict:
@@ -220,16 +218,17 @@ class EventHandler:
         logging.info('Process event: {}'.format(event))
         match event['type']:
             case 'com.datamesh-manager.events.DataContractDeactivatedEvent':
+                logging.info('Deactivate')
                 self._deactivated_event(event)
             case 'com.datamesh-manager.events.DataContractActivatedEvent':
+                logging.info('Activate')
                 self._activated_event(event)
 
     def _deactivated_event(self, event: DMMEvent):
         datacontract = self._dmm_client.get_datacontract(event['data']['id'])
         # aws resource specific code from here
-        if datacontract is not None:
-            policy_arn = datacontract['custom']['aws-policy-arn']
-            self._aws_iam_manager.remove_access(policy_arn)
+        # if datacontract is not None:
+        self._aws_deactivated_event(datacontract)
 
     def _activated_event(self, event: DMMEvent):
         datacontract_id = event['data']['id']
@@ -249,22 +248,42 @@ class EventHandler:
 
     # aws resource specific code from here
 
+    def _aws_deactivated_event(self, datacontract):
+        policy_arn = datacontract['custom']['aws-policy-arn']
+        self._aws_iam_manager.remove_access(policy_arn)
+
     def _aws_activated_event(self,
         datacontract: DataContract,
         consumer_dataproduct: DataProduct,
         provider_dataproduct: DataProduct):
+
+        datacontract_id = datacontract['info']['id']
+        policy_arn = None
+
         # grant access to aws_resource to consumer
-        policy_arn = self._aws_grant_access(datacontract,
-                                            consumer_dataproduct,
-                                            provider_dataproduct)
-        # update datacontract in DMM
         try:
-            self._aws_add_arn_to_datacontract(datacontract['info']['id'],
-                                              policy_arn)
-        except Exception as e:
-            # if anything goes wrong remove access and reraise exception
-            self._aws_iam_manager.remove_access(policy_arn)
-            raise e
+            policy_arn = self._aws_grant_access(datacontract,
+                                                consumer_dataproduct,
+                                                provider_dataproduct)
+        except ClientError as e:
+            # todo: test
+            if e.response['Error']['Code'] == 'EntityAlreadyExists':
+                logging.info("Policy for contract {} already exists."
+                             .format(datacontract_id))
+            else:
+                raise e
+
+        # todo: test
+        # update datacontract in DMM
+        # if policy_arn is not None:
+        #     try:
+        #         self._aws_add_arn_to_datacontract(datacontract_id, policy_arn)
+        #     except Exception as e:
+        #         logging.warning('Failed to update DMM. Removing access ({}).'
+        #                         .format(datacontract_id))
+        #         # if anything goes wrong remove access and reraise exception
+        #         self._aws_iam_manager.remove_access(policy_arn)
+        #         raise e
 
     def _aws_grant_access(self,
         datacontract: DataContract,

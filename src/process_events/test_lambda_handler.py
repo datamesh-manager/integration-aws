@@ -5,6 +5,7 @@ from unittest.mock import patch, sentinel, Mock
 
 import boto3
 from botocore.stub import Stubber
+from botocore.exceptions import ClientError
 
 from lambda_handler import Secrets, DMMClient, AWSIAMManager, EventHandler, \
     UnsupportedServiceException, RequiredCustomFieldNotSet
@@ -188,7 +189,7 @@ class TestAWSIAMManager(TestCase):
     _datacontract_id = '123-123-321'
     _consumer_role_name = 'hi_iam_a_consumer_role'
     _s3_output_port_arn = 'arn:aws:s3:one:two:three'
-    _policy_arn = 'arn:aws:policy:one:two:three'
+    _policy_name = 'DMM_Datacontract_{}'.format(_datacontract_id)
 
     def setUp(self) -> None:
         iam = boto3.client('iam')
@@ -201,42 +202,33 @@ class TestAWSIAMManager(TestCase):
 
     def test_remove_access(self) -> None:
         self._iam_stubber.add_response(
-            'list_entities_for_policy',
-            {
-                'PolicyGroups': [],
-                'PolicyUsers': [],
-                'PolicyRoles': [
-                    {
-                        'RoleName': self._consumer_role_name,
-                    },
-                ]
-            },
-            {
-                'MaxItems': 1,
-                'PolicyArn': self._policy_arn
-            }
-        )
-
-        self._iam_stubber.add_response(
-            'detach_role_policy',
+            'delete_role_policy',
             {},
             {
                 'RoleName': self._consumer_role_name,
-                'PolicyArn': self._policy_arn
+                'PolicyName': self._policy_name
             }
         )
-
-        self._iam_stubber.add_response(
-            'delete_policy',
-            {},
-            {'PolicyArn': self._policy_arn}
-        )
-
         self._iam_stubber.activate()
 
-        self._iam_manager.remove_access(self._policy_arn)
+        self._iam_manager.remove_access(self._datacontract_id,
+                                        self._consumer_role_name)
 
         self._iam_stubber.assert_no_pending_responses()
+
+    def test_remove_access_not_found(self) -> None:
+        self._iam_stubber.add_client_error(
+            'delete_role_policy',
+            service_error_code='NoSuchEntityException',
+            expected_params={
+                'RoleName': self._consumer_role_name,
+                'PolicyName': self._policy_name
+            }
+        )
+        self._iam_stubber.activate()
+
+        self._iam_manager.remove_access(self._datacontract_id,
+                                        self._consumer_role_name)
 
     def test_grant_access_unsupported(self) -> None:
         with self.assertRaises(UnsupportedServiceException):
@@ -245,26 +237,32 @@ class TestAWSIAMManager(TestCase):
                                            "aws:arn:iam:one:two:three")
 
     def test_grant_access_s3(self) -> None:
-        expected_document = {
-            'Version': '2012-10-17',
-            'Statement': [
-                {
-                    'Effect': 'Allow',
-                    'Action': [
-                        's3:GetBucketLocation',
-                        's3:GetObject',
-                        's3:ListBucket'
-                    ],
-                    'Resource': [
-                        self._s3_output_port_arn,
-                        '{}/*'.format(self._s3_output_port_arn)
+        self._iam_stubber.add_response(
+            'put_role_policy',
+            {},
+            {
+                'RoleName': self._consumer_role_name,
+                'PolicyName': 'DMM_Datacontract_{}'.format(
+                    self._datacontract_id),
+                'PolicyDocument': json.dumps({
+                    'Version': '2012-10-17',
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': [
+                                's3:GetBucketLocation',
+                                's3:GetObject',
+                                's3:ListBucket'
+                            ],
+                            'Resource': [
+                                self._s3_output_port_arn,
+                                '{}/*'.format(self._s3_output_port_arn)
+                            ]
+                        }
                     ]
-                }
-            ]
-        }
-
-        self._stub_create_policy(expected_document)
-        self._stub_attach_role_policy()
+                })
+            }
+        )
 
         self._iam_stubber.activate()
 
@@ -272,45 +270,10 @@ class TestAWSIAMManager(TestCase):
                                                 self._consumer_role_name,
                                                 self._s3_output_port_arn)
 
-        self.assertEqual(self._policy_arn, result)
+        expected = 'DMM_Datacontract_{}'.format(self._datacontract_id)
+        self.assertEqual(expected, result)
 
         self._iam_stubber.assert_no_pending_responses()
-
-    def _stub_create_policy(self, expected_document):
-        self._iam_stubber.add_response(
-            'create_policy',
-            {
-                'Policy': {
-                    'Arn': self._policy_arn
-                }
-            },
-            {
-                'PolicyName': 'DMM_Datacontract_{}'.format(
-                    self._datacontract_id),
-                'PolicyDocument': json.dumps(expected_document),
-                'Tags': [
-                    {
-                        'Key': 'managed-by',
-                        'Value': 'dmm-integration'
-                    },
-                    {
-                        'Key': 'dmm-integration-contract',
-                        'Value': self._datacontract_id
-                    }
-                ]
-            }
-        )
-
-    def _stub_attach_role_policy(self):
-        expected_params = {
-            'RoleName': self._consumer_role_name,
-            'PolicyArn': self._policy_arn
-        }
-        self._iam_stubber.add_response(
-            'attach_role_policy',
-            {},
-            expected_params
-        )
 
 
 class TestEventHandler(TestCase):
