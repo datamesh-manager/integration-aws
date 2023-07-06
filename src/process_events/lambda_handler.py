@@ -226,33 +226,68 @@ class EventHandler:
 
     def _deactivated_event(self, event: DMMEvent):
         datacontract = self._dmm_client.get_datacontract(event['data']['id'])
+        # aws resource specific code from here
         if datacontract is not None:
             policy_arn = datacontract['custom']['aws-policy-arn']
             self._aws_iam_manager.remove_access(policy_arn)
 
     def _activated_event(self, event: DMMEvent):
         datacontract_id = event['data']['id']
-
         datacontract = self._dmm_client.get_datacontract(datacontract_id)
 
         if datacontract is not None:
-            consumer_role_name = self._consumer_role_name(
+            consumer_dataproduct = self._dmm_client.get_dataproduct(
                 datacontract['consumer']['dataProductId'])
+            provider_dataproduct = self._dmm_client.get_dataproduct(
+                datacontract['provider']['dataProductId'])
 
-            output_port_arn = self._output_port_arn(
-                datacontract['provider']['dataProductId'],
-                datacontract['provider']['outputPortId'])
-
-            self._aws_iam_manager.grant_access(datacontract_id,
-                                               consumer_role_name,
-                                               output_port_arn)
+            self._aws_activated_event(datacontract,
+                                      consumer_dataproduct,
+                                      provider_dataproduct)
 
             logging.info('Activated: {}'.format(event['id']))
 
-    def _consumer_role_name(self, consumer_dataproduct_id):
-        consumer_dataproduct = self._dmm_client.get_dataproduct(
-            consumer_dataproduct_id)
+    # aws resource specific code from here
 
+    def _aws_activated_event(self,
+        datacontract: DataContract,
+        consumer_dataproduct: DataProduct,
+        provider_dataproduct: DataProduct):
+        # grant access to aws_resource to consumer
+        policy_arn = self._aws_grant_access(datacontract,
+                                            consumer_dataproduct,
+                                            provider_dataproduct)
+        # update datacontract in DMM
+        try:
+            self._aws_add_arn_to_datacontract(datacontract['info']['id'],
+                                              policy_arn)
+        except Exception as e:
+            # if anything goes wrong remove access and reraise exception
+            self._aws_iam_manager.remove_access(policy_arn)
+            raise e
+
+    def _aws_grant_access(self,
+        datacontract: DataContract,
+        consumer_dataproduct: DataProduct,
+        provider_dataproduct: DataProduct) -> str:
+
+        datacontract_id = datacontract['info']['id']
+        consumer_role_name = self._aws_consumer_role_name(consumer_dataproduct)
+        output_port_arn = self._aws_output_port_arn(
+            provider_dataproduct,
+            datacontract['provider']['outputPortId'])
+
+        return self._aws_iam_manager.grant_access(
+            datacontract_id,
+            consumer_role_name,
+            output_port_arn)
+
+    def _aws_add_arn_to_datacontract(self, datacontract_id, policy_arn):
+        self._dmm_client.patch_datacontract(datacontract_id, {
+            'custom': {'aws-policy-arn': policy_arn}})
+
+    @staticmethod
+    def _aws_consumer_role_name(consumer_dataproduct: DataProduct):
         try:
             consumer_role_name = consumer_dataproduct['custom']['aws-role-name']
         except KeyError as ke:
@@ -260,22 +295,17 @@ class EventHandler:
 
         return consumer_role_name
 
-    def _output_port_arn(self,
-        provider_dataproduct_id,
-        provider_output_port_id) -> str:
-
-        provider_dataproduct = self._dmm_client.get_dataproduct(
-            provider_dataproduct_id)
-
-        output_port = next(op
-                           for op in provider_dataproduct['outputPorts']
-                           if op['id'] == provider_output_port_id)
-
+    @staticmethod
+    def _aws_output_port_arn(
+        provider_dataproduct: DataProduct,
+        provider_output_port_id: str) -> str:
+        output_port = \
+            next(op for op in provider_dataproduct['outputPorts']
+                 if op['id'] == provider_output_port_id)
         try:
             output_port_arn = output_port['custom']['aws-arn']
         except KeyError as ke:
             raise RequiredCustomFieldNotSet(ke)
-
         return output_port_arn
 
 

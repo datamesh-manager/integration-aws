@@ -194,7 +194,7 @@ class TestAWSIAMManager(TestCase):
         iam = boto3.client('iam')
 
         self._iam_stubber = Stubber(iam)
-        self._access_manager = AWSIAMManager(iam)
+        self._iam_manager = AWSIAMManager(iam)
 
     def tearDown(self) -> None:
         self._iam_stubber.deactivate()
@@ -234,15 +234,15 @@ class TestAWSIAMManager(TestCase):
 
         self._iam_stubber.activate()
 
-        self._access_manager.remove_access(self._policy_arn)
+        self._iam_manager.remove_access(self._policy_arn)
 
         self._iam_stubber.assert_no_pending_responses()
 
     def test_grant_access_unsupported(self) -> None:
         with self.assertRaises(UnsupportedServiceException):
-            self._access_manager.grant_access(self._datacontract_id,
-                                              self._consumer_role_name,
-                                              "aws:arn:iam:one:two:three")
+            self._iam_manager.grant_access(self._datacontract_id,
+                                           self._consumer_role_name,
+                                           "aws:arn:iam:one:two:three")
 
     def test_grant_access_s3(self) -> None:
         expected_document = {
@@ -268,9 +268,9 @@ class TestAWSIAMManager(TestCase):
 
         self._iam_stubber.activate()
 
-        result = self._access_manager.grant_access(self._datacontract_id,
-                                                   self._consumer_role_name,
-                                                   self._s3_output_port_arn)
+        result = self._iam_manager.grant_access(self._datacontract_id,
+                                                self._consumer_role_name,
+                                                self._s3_output_port_arn)
 
         self.assertEqual(self._policy_arn, result)
 
@@ -331,14 +331,14 @@ class TestEventHandler(TestCase):
 
     @patch('lambda_handler.AWSIAMManager')
     @patch('lambda_handler.DMMClient')
-    def setUp(self, dmm_client, access_manager) -> None:
+    def setUp(self, dmm_client, iam_manager) -> None:
         self._dmm_client = dmm_client
-        self._access_manager = access_manager
-        self._event_handler = EventHandler(dmm_client, access_manager)
+        self._iam_manager = iam_manager
+        self._event_handler = EventHandler(dmm_client, iam_manager)
 
     def tearDown(self) -> None:
         self._dmm_client.reset_mock()
-        self._access_manager.reset_mock()
+        self._iam_manager.reset_mock()
 
     def test_handle__ignore_others(self) -> None:
         event = {
@@ -346,8 +346,8 @@ class TestEventHandler(TestCase):
             'type': 'com.datamesh-manager.events.OtherEvent'
         }
         self._event_handler.handle(event)
-        self._access_manager.grant_access.assert_not_called()
-        self._access_manager.remove_access.assert_not_called()
+        self._iam_manager.grant_access.assert_not_called()
+        self._iam_manager.remove_access.assert_not_called()
 
     def test_handle__deactivated(self) -> None:
         self._dmm_client.get_datacontract = \
@@ -360,7 +360,7 @@ class TestEventHandler(TestCase):
         }
         self._event_handler.handle(event)
 
-        self._access_manager.remove_access.assert_called_with(self._policy_arn)
+        self._iam_manager.remove_access.assert_called_with(self._policy_arn)
 
     def test_handle__deactivated__contract_not_found(self) -> None:
         self._dmm_client.get_datacontract = \
@@ -373,7 +373,7 @@ class TestEventHandler(TestCase):
         }
         self._event_handler.handle(event)
 
-        self._access_manager.remove_access.assert_not_called()
+        self._iam_manager.remove_access.assert_not_called()
 
     def _test_handle__deactivated__mock_get_datacontract(self,
         datacontract_id: str):
@@ -385,13 +385,31 @@ class TestEventHandler(TestCase):
     def test_handle__activated(self) -> None:
         self._dmm_client.get_datacontract = self._mock_get_data_contract
         self._dmm_client.get_dataproduct = self._mock_get_dataproduct
+        self._iam_manager.grant_access.return_value = self._policy_arn
 
         self._event_handler.handle(self._activated_event)
 
-        self._access_manager.grant_access.assert_called_with(
+        self._iam_manager.grant_access.assert_called_with(
             self._data_contract_id,
             self._consumer_role_name,
             self._output_port_arn)
+        self._dmm_client.patch_datacontract.assert_called_with(
+            self._data_contract_id,
+            {
+                'custom': {'aws-policy-arn': self._policy_arn}
+            }
+        )
+
+    def test_handle__activated__patch_failed(self) -> None:
+        self._dmm_client.get_datacontract = self._mock_get_data_contract
+        self._dmm_client.get_dataproduct = self._mock_get_dataproduct
+        self._dmm_client.patch_datacontract.side_effect = RuntimeError()
+        self._iam_manager.grant_access.return_value = self._policy_arn
+
+        with self.assertRaises(Exception):
+            self._event_handler.handle(self._activated_event)
+
+        self._iam_manager.remove_access.assert_called_with(self._policy_arn)
 
     def test_handle__activated__consumer_role_not_set(self) -> None:
         self._dmm_client.get_datacontract = self._mock_get_data_contract
@@ -413,6 +431,9 @@ class TestEventHandler(TestCase):
     def _mock_get_data_contract(self, datacontract_id: str):
         if datacontract_id == self._data_contract_id:
             return {
+                'info': {
+                    'id': self._data_contract_id
+                },
                 'consumer': {
                     'dataProductId': self._consumer_dataproduct_id
                 },
