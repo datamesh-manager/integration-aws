@@ -1,8 +1,10 @@
 import json
 import logging
 from datetime import datetime
+from os import environ
 from typing import TypeAlias
 
+import boto3
 import requests
 
 DataContract: TypeAlias = dict[str, dict[str, str]]
@@ -14,16 +16,28 @@ DMMEvent: TypeAlias = dict[str, str | dict]
 def lambda_handler(event, context):
     logging.getLogger().setLevel(logging.INFO)
 
-    # resource_explorer = boto3.client('resource-explorer-2')
-    # iam = boto3.client('iam')
-    #
-    # dmm_events = list(map(lambda e: json.loads(e['body']), event['Records']))
-    #
-    # secrets = Secrets(boto3.client('secretsmanager'))
-    # api_key = secrets.get_secret('dmm_integration__api_key')
-    #
-    # for dmm_event in dmm_events:
-    #     process_event(api_key, dmm_event)
+    # get configuration
+    dmm_base_url = environ['dmm_base_url']
+    dmm_api_key_secret_name = environ['dmm_api_key_secret_name']
+
+    # create access manager
+    iam = boto3.client('iam')
+    resource_explorer = boto3.client('resource-explorer-2')
+    access_manager = AccessManager(iam, resource_explorer)
+
+    # create client for Data Mesh Manager
+    secretsmanager = boto3.client('secretsmanager')
+    secrets = Secrets(secretsmanager)
+    dmm_api_key = secrets.get_secret(dmm_api_key_secret_name)
+    dmm_client = DMMClient(dmm_base_url, dmm_api_key)
+
+    # create event handler
+    event_handler = EventHandler(dmm_client, access_manager)
+
+    # handle dmm events from lambda event
+    dmm_events = list(map(lambda e: json.loads(e['body']), event['Records']))
+    for dmm_event in dmm_events:
+        event_handler.handle(dmm_event)
 
     return
 
@@ -82,9 +96,10 @@ class Secrets:
 
 
 class AccessManager:
-    def __init__(self, iam, resource_explorer):
+    def __init__(self, iam, resource_explorer, resource_view_arn):
         self._iam = iam
         self._resource_explorer = resource_explorer
+        self._resource_view_arn = resource_view_arn
 
     def remove_access(self, datacontract_id: str):
         policy_arn = self._search_policy_for_contract(datacontract_id)
@@ -126,7 +141,7 @@ class AccessManager:
 
         # otherwise create policy and attach to role
         policy = {
-            'Version': self._policy_version(),
+            'Version': '2012-10-17',
             'Statement': self._policy_statements(output_port_arn)
         }
 
@@ -148,7 +163,7 @@ class AccessManager:
         policy_document: dict) -> str:
         # create policy
         create_policy_result = self._iam.create_policy(
-            PolicyName='DMM Datacontract {}'.format(datacontract_id),
+            PolicyName='DMM_Datacontract_{}'.format(datacontract_id),
             PolicyDocument=json.dumps(policy_document),
             Tags=[self._managed_by_tag(),
                   self._contract_id_tag(datacontract_id)]
@@ -162,12 +177,16 @@ class AccessManager:
 
         return create_policy_result['Policy']['Arn']
 
+    # todo: move to dmm
     def _search_policy_for_contract(self,
         datacontract_id) -> str | None:
         search_result = self._resource_explorer.search(
             QueryString='tag:managed-by=dmm-integration AND '
                         'tag:dmm-integration-contract=' + datacontract_id,
-            MaxResults=1)
+            MaxResults=1,
+            ViewArn=self._resource_view_arn
+        )
+
         assert search_result['Count']['TotalResources'] <= 1
         if search_result['Count']['TotalResources'] == 1:
             return search_result['Resources'][0]['Arn']
@@ -234,18 +253,19 @@ class EventHandler:
 
         datacontract = self._dmm_client.get_datacontract(datacontract_id)
 
-        consumer_role_name = self._consumer_role_name(
-            datacontract['consumer']['dataProductId'])
+        if datacontract is not None:
+            consumer_role_name = self._consumer_role_name(
+                datacontract['consumer']['dataProductId'])
 
-        output_port_arn = self._output_port_arn(
-            datacontract['provider']['dataProductId'],
-            datacontract['provider']['outputPortId'])
+            output_port_arn = self._output_port_arn(
+                datacontract['provider']['dataProductId'],
+                datacontract['provider']['outputPortId'])
 
-        self._access_manager.grant_access(datacontract_id,
-                                          consumer_role_name,
-                                          output_port_arn)
+            self._access_manager.grant_access(datacontract_id,
+                                              consumer_role_name,
+                                              output_port_arn)
 
-        logging.info('Activated: {}'.format(event['id']))
+            logging.info('Activated: {}'.format(event['id']))
 
     def _consumer_role_name(self, consumer_dataproduct_id):
         consumer_dataproduct = self._dmm_client.get_dataproduct(

@@ -464,6 +464,8 @@ class TestEventHandler(TestCase):
         else:
             return None
 
+    # todo: datacontract does not exist
+
     def _mock_get_dataproduct(self, dataproduct_id: str):
         if dataproduct_id == self._consumer_dataproduct_id:
             return {

@@ -7,8 +7,3 @@ aws = {
 dmm = {
   api_key = "dmm_api_key"
 }
-
-versions {
-  process_feed   = "v0.0.1"
-  process_events = "v0.0.1"
-}

@@ -9,6 +9,13 @@ resource "aws_lambda_function" "process_events_lambda_function" {
   timeout       = 10
   runtime       = "python3.10"
   architectures = ["arm64"]
+
+  environment {
+    variables = {
+      dmm_base_url                   = local.dmm_base_url
+      dmm_api_key_secret_name        = local.dmm_api_key_secret_name
+    }
+  }
 }
 
 # trigger lambda on event in sqs
