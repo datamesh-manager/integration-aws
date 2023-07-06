@@ -20,10 +20,9 @@ def lambda_handler(event, context):
     dmm_base_url = environ['dmm_base_url']
     dmm_api_key_secret_name = environ['dmm_api_key_secret_name']
 
-    # create access manager
+    # create iam manager
     iam = boto3.client('iam')
-    resource_explorer = boto3.client('resource-explorer-2')
-    access_manager = AccessManager(iam, resource_explorer)
+    iam_manager = AWSIAMManager(iam)
 
     # create client for Data Mesh Manager
     secretsmanager = boto3.client('secretsmanager')
@@ -32,7 +31,7 @@ def lambda_handler(event, context):
     dmm_client = DMMClient(dmm_base_url, dmm_api_key)
 
     # create event handler
-    event_handler = EventHandler(dmm_client, access_manager)
+    event_handler = EventHandler(dmm_client, iam_manager)
 
     # handle dmm events from lambda event
     dmm_events = list(map(lambda e: json.loads(e['body']), event['Records']))
@@ -95,23 +94,15 @@ class Secrets:
         return get_secret_value_response['SecretString']
 
 
-class AccessManager:
-    def __init__(self, iam, resource_explorer, resource_view_arn):
+class AWSIAMManager:
+    def __init__(self, iam):
         self._iam = iam
-        self._resource_explorer = resource_explorer
-        self._resource_view_arn = resource_view_arn
 
-    def remove_access(self, datacontract_id: str):
-        policy_arn = self._search_policy_for_contract(datacontract_id)
-        if policy_arn is None:
-            logging.warning('Policy for contract {} not found '
-                            'while trying to remove access.'
-                            .format(datacontract_id))
-        else:
-            role_name = self._get_single_policy_role_name(policy_arn)
-            self._iam.detach_role_policy(RoleName=role_name,
-                                         PolicyArn=policy_arn)
-            self._iam.delete_policy(PolicyArn=policy_arn)
+    def remove_access(self, policy_arn: str):
+        role_name = self._get_single_policy_role_name(policy_arn)
+        self._iam.detach_role_policy(RoleName=role_name,
+                                     PolicyArn=policy_arn)
+        self._iam.delete_policy(PolicyArn=policy_arn)
 
     def _get_single_policy_role_name(self, policy_arn):
         response = self._iam.list_entities_for_policy(PolicyArn=policy_arn,
@@ -131,15 +122,6 @@ class AccessManager:
 
         - works only for S3 buckets at this point -
         """
-
-        # return existing policy arn if one exists for parameters
-        existing_policy_arn = self._search_policy_for_contract(datacontract_id)
-        if existing_policy_arn is not None:
-            logging.info('Policy for datacontract {} exists already'
-                         .format(datacontract_id))
-            return existing_policy_arn
-
-        # otherwise create policy and attach to role
         policy = {
             'Version': '2012-10-17',
             'Statement': self._policy_statements(output_port_arn)
@@ -176,22 +158,6 @@ class AccessManager:
         )
 
         return create_policy_result['Policy']['Arn']
-
-    # todo: move to dmm
-    def _search_policy_for_contract(self,
-        datacontract_id) -> str | None:
-        search_result = self._resource_explorer.search(
-            QueryString='tag:managed-by=dmm-integration AND '
-                        'tag:dmm-integration-contract=' + datacontract_id,
-            MaxResults=1,
-            ViewArn=self._resource_view_arn
-        )
-
-        assert search_result['Count']['TotalResources'] <= 1
-        if search_result['Count']['TotalResources'] == 1:
-            return search_result['Resources'][0]['Arn']
-        else:
-            return None
 
     @staticmethod
     def _s3_statement(output_port_arn: str) -> dict:
@@ -233,9 +199,9 @@ class UnsupportedServiceException(Exception):
 
 
 class EventHandler:
-    def __init__(self, dmm_client: DMMClient, access_manager: AccessManager):
+    def __init__(self, dmm_client: DMMClient, aws_iam_manager: AWSIAMManager):
         self._dmm_client = dmm_client
-        self._access_manager = access_manager
+        self._aws_iam_manager = aws_iam_manager
 
     def handle(self, event: DMMEvent) -> None:
         logging.info('Process event: {}'.format(event))
@@ -246,7 +212,7 @@ class EventHandler:
                 self._activated_event(event)
 
     def _deactivated_event(self, event: DMMEvent):
-        self._access_manager.remove_access(event['data']['id'])
+        self._aws_iam_manager.remove_access(event['data']['id'])
 
     def _activated_event(self, event: DMMEvent):
         datacontract_id = event['data']['id']
@@ -261,9 +227,9 @@ class EventHandler:
                 datacontract['provider']['dataProductId'],
                 datacontract['provider']['outputPortId'])
 
-            self._access_manager.grant_access(datacontract_id,
-                                              consumer_role_name,
-                                              output_port_arn)
+            self._aws_iam_manager.grant_access(datacontract_id,
+                                               consumer_role_name,
+                                               output_port_arn)
 
             logging.info('Activated: {}'.format(event['id']))
 

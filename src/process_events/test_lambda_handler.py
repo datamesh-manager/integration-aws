@@ -1,14 +1,12 @@
 import json
-import logging
 import unittest
-from datetime import datetime
 from unittest import TestCase
 from unittest.mock import patch, sentinel, Mock
 
 import boto3
 from botocore.stub import Stubber
 
-from lambda_handler import Secrets, DMMClient, AccessManager, EventHandler, \
+from lambda_handler import Secrets, DMMClient, AWSIAMManager, EventHandler, \
     UnsupportedServiceException, RequiredCustomFieldNotSet
 
 
@@ -153,7 +151,7 @@ class TestSecrets(TestCase):
                          self._secrets.get_secret(self._secret_name))
 
 
-class TestAccessManager(TestCase):
+class TestAWSIAMManager(TestCase):
     _datacontract_id = '123-123-321'
     _consumer_role_name = 'hi_iam_a_consumer_role'
     _s3_output_port_arn = 'arn:aws:s3:one:two:three'
@@ -161,19 +159,14 @@ class TestAccessManager(TestCase):
 
     def setUp(self) -> None:
         iam = boto3.client('iam')
-        resource_explorer = boto3.client('resource-explorer-2')
 
         self._iam_stubber = Stubber(iam)
-        self._resource_explorer_stubber = Stubber(resource_explorer)
-        self._access_manager = AccessManager(iam, resource_explorer)
+        self._access_manager = AWSIAMManager(iam)
 
     def tearDown(self) -> None:
         self._iam_stubber.deactivate()
-        self._resource_explorer_stubber.deactivate()
 
     def test_remove_access(self) -> None:
-        self._stub_resource_search_with_single_result()
-
         self._iam_stubber.add_response(
             'list_entities_for_policy',
             {
@@ -206,70 +199,21 @@ class TestAccessManager(TestCase):
             {'PolicyArn': self._policy_arn}
         )
 
-        self._resource_explorer_stubber.activate()
         self._iam_stubber.activate()
 
-        self._access_manager.remove_access(self._datacontract_id)
+        self._access_manager.remove_access(self._policy_arn)
 
         self._iam_stubber.assert_no_pending_responses()
 
-    def test_remove_access_policy_not_found(self) -> None:
-        self._stub_resource_search_with_empty_result()
-        self._resource_explorer_stubber.activate()
-
-        with self.assertLogs(logger=None, level=logging.WARNING) as cm:
-            self._access_manager.remove_access(self._datacontract_id)
-            self.assertEqual(['WARNING:root:Policy for contract {} not found '
-                              'while trying to remove access.'
-                             .format(self._datacontract_id)],
-                             cm.output)
-
     def test_grant_access_unsupported(self) -> None:
-        self._stub_resource_search_with_empty_result()
-        self._resource_explorer_stubber.activate()
         with self.assertRaises(UnsupportedServiceException):
             self._access_manager.grant_access(self._datacontract_id,
                                               self._consumer_role_name,
                                               "aws:arn:iam:one:two:three")
 
-    def test_grant_access_too_many_results(self) -> None:
-        self._resource_explorer_stubber.add_response(
-            'search',
-            {
-                'Count': {
-                    'TotalResources': 2
-                },
-                'Resources': [
-                    {'Arn': self._policy_arn}
-                ]
-            },
-            {
-                'MaxResults': 1,
-                'QueryString': 'tag:managed-by=dmm-integration AND '
-                               'tag:dmm-integration-contract=' +
-                               self._datacontract_id
-            }
-        )
-        self._resource_explorer_stubber.activate()
-
-        with self.assertRaises(AssertionError):
-            self._access_manager.grant_access(self._datacontract_id,
-                                              self._consumer_role_name,
-                                              self._s3_output_port_arn)
-
-    def test_grant_access_policy_exists_already(self) -> None:
-        self._stub_resource_search_with_single_result()
-        self._resource_explorer_stubber.activate()
-
-        result = self._access_manager.grant_access(self._datacontract_id,
-                                                   self._consumer_role_name,
-                                                   self._s3_output_port_arn)
-
-        self.assertEqual(self._policy_arn, result)
-
     def test_grant_access_s3(self) -> None:
         expected_document = {
-            'Version': datetime.today().strftime('%Y-%m-%d'),
+            'Version': '2012-10-17',
             'Statement': [
                 {
                     'Effect': 'Allow',
@@ -289,10 +233,7 @@ class TestAccessManager(TestCase):
         self._stub_create_policy(expected_document)
         self._stub_attach_role_policy()
 
-        self._stub_resource_search_with_empty_result()
-
         self._iam_stubber.activate()
-        self._resource_explorer_stubber.activate()
 
         result = self._access_manager.grant_access(self._datacontract_id,
                                                    self._consumer_role_name,
@@ -301,45 +242,6 @@ class TestAccessManager(TestCase):
         self.assertEqual(self._policy_arn, result)
 
         self._iam_stubber.assert_no_pending_responses()
-        self._resource_explorer_stubber.assert_no_pending_responses()
-
-    def _stub_resource_search_with_single_result(self):
-        self._resource_explorer_stubber.add_response(
-            'search',
-            {
-                'Count': {
-                    'TotalResources': 1
-                },
-                'Resources': [
-                    {
-                        'Arn': self._policy_arn
-                    }
-                ]
-            },
-            {
-                'MaxResults': 1,
-                'QueryString': 'tag:managed-by=dmm-integration AND '
-                               'tag:dmm-integration-contract=' +
-                               self._datacontract_id
-            }
-        )
-
-    def _stub_resource_search_with_empty_result(self):
-        self._resource_explorer_stubber.add_response(
-            'search',
-            {
-                'Count': {
-                    'TotalResources': 0
-                },
-                'Resources': []
-            },
-            {
-                'MaxResults': 1,
-                'QueryString': 'tag:managed-by=dmm-integration AND '
-                               'tag:dmm-integration-contract=' +
-                               self._datacontract_id
-            }
-        )
 
     def _stub_create_policy(self, expected_document):
         self._iam_stubber.add_response(
@@ -350,7 +252,7 @@ class TestAccessManager(TestCase):
                 }
             },
             {
-                'PolicyName': 'DMM Datacontract {}'.format(
+                'PolicyName': 'DMM_Datacontract_{}'.format(
                     self._datacontract_id),
                 'PolicyDocument': json.dumps(expected_document),
                 'Tags': [
@@ -393,7 +295,7 @@ class TestEventHandler(TestCase):
         'data': {'id': _data_contract_id}
     }
 
-    @patch('lambda_handler.AccessManager')
+    @patch('lambda_handler.AWSIAMManager')
     @patch('lambda_handler.DMMClient')
     def setUp(self, dmm_client, access_manager) -> None:
         self._dmm_client = dmm_client
@@ -450,6 +352,9 @@ class TestEventHandler(TestCase):
         with self.assertRaises(RequiredCustomFieldNotSet):
             self._event_handler.handle(self._activated_event)
 
+    def test_handle__activated__contract_does_not_exist(self) -> None:
+        raise NotImplementedError
+
     def _mock_get_data_contract(self, datacontract_id: str):
         if datacontract_id == self._data_contract_id:
             return {
@@ -463,8 +368,6 @@ class TestEventHandler(TestCase):
             }
         else:
             return None
-
-    # todo: datacontract does not exist
 
     def _mock_get_dataproduct(self, dataproduct_id: str):
         if dataproduct_id == self._consumer_dataproduct_id:
