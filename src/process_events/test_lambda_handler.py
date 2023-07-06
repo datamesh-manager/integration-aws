@@ -426,7 +426,12 @@ class TestEventHandler(TestCase):
             self._event_handler.handle(self._activated_event)
 
     def test_handle__activated__contract_not_found(self) -> None:
-        raise NotImplementedError
+        self._dmm_client.get_datacontract.return_value = None
+
+        self._event_handler.handle(self._activated_event)
+
+        self._iam_manager.grant_access.assert_not_called()
+        self._dmm_client.patch_datacontract.assert_not_called()
 
     def _mock_get_data_contract(self, datacontract_id: str):
         if datacontract_id == self._data_contract_id:
