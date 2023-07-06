@@ -212,7 +212,10 @@ class EventHandler:
                 self._activated_event(event)
 
     def _deactivated_event(self, event: DMMEvent):
-        self._aws_iam_manager.remove_access(event['data']['id'])
+        datacontract = self._dmm_client.get_datacontract(event['data']['id'])
+        if datacontract is not None:
+            policy_arn = datacontract['custom']['aws-policy-arn']
+            self._aws_iam_manager.remove_access(policy_arn)
 
     def _activated_event(self, event: DMMEvent):
         datacontract_id = event['data']['id']

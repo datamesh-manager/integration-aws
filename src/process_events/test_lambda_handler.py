@@ -288,6 +288,7 @@ class TestEventHandler(TestCase):
     _output_port_id = '456-6454-545'
     _output_port_arn = 'arn:aws:service:output:port'
     _provider_dataproduct_id = 'qwer-321-qwer'
+    _policy_arn = 'arn:aws:iam:contract:policy'
 
     _activated_event = {
         'id': _event_id,
@@ -316,16 +317,37 @@ class TestEventHandler(TestCase):
         self._access_manager.remove_access.assert_not_called()
 
     def test_handle__deactivated(self) -> None:
+        self._dmm_client.get_datacontract = \
+            self._test_handle__deactivated__mock_get_datacontract
+
         event = {
             'id': self._event_id,
             'type': 'com.datamesh-manager.events.DataContractDeactivatedEvent',
             'data': {'id': self._data_contract_id}
         }
-
         self._event_handler.handle(event)
 
-        self._access_manager.remove_access.assert_called_with(
-            self._data_contract_id)
+        self._access_manager.remove_access.assert_called_with(self._policy_arn)
+
+    def test_handle__deactivated__contract_not_found(self) -> None:
+        self._dmm_client.get_datacontract = \
+            self._test_handle__deactivated__mock_get_datacontract
+
+        event = {
+            'id': self._event_id,
+            'type': 'com.datamesh-manager.events.DataContractDeactivatedEvent',
+            'data': {'id': 'something_else'}
+        }
+        self._event_handler.handle(event)
+
+        self._access_manager.remove_access.assert_not_called()
+
+    def _test_handle__deactivated__mock_get_datacontract(self,
+        datacontract_id: str):
+        if datacontract_id == self._data_contract_id:
+            return {'custom': {'aws-policy-arn': self._policy_arn}}
+        else:
+            return None
 
     def test_handle__activated(self) -> None:
         self._dmm_client.get_datacontract = self._mock_get_data_contract
@@ -352,7 +374,7 @@ class TestEventHandler(TestCase):
         with self.assertRaises(RequiredCustomFieldNotSet):
             self._event_handler.handle(self._activated_event)
 
-    def test_handle__activated__contract_does_not_exist(self) -> None:
+    def test_handle__activated__contract_not_found(self) -> None:
         raise NotImplementedError
 
     def _mock_get_data_contract(self, datacontract_id: str):
