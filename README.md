@@ -30,7 +30,7 @@ For a better understanding of how the integration works, see this simple archite
 │              │                                                                 │              │
 │              │                                                                 │              │
 │     ┌────────┴────────┐                ──────────── ──                ┌────────┴────────┐     │
-│     │  process_feed   │     write     │ dmm_events │  │    trigger    │ process_events  │     │
+│     │    poll_feed    │     write     │ dmm_events │  │    trigger    │ process_events  │     │
 │     │                 ├──────────────►│            │  ├──────────────►│                 │     │
 │     │[Lambda Function]│               │ [SQS Queue]│  │               │[Lambda Function]│     │
 │     └─────────────────┘                ──────────── ──                └────────┬────────┘     │
@@ -57,7 +57,7 @@ For a better understanding of how the integration works, see this simple archite
 - [adr-005-fifo-queue-in-sqs.md](adr%2Fadr-005-fifo-queue-in-sqs.md)
 
 ## Lambdas
-### [Process Feed](src%2Fprocess_feed%2Flambda_handler.py)
+### [Process Feed](src%2Fpoll_feed%2Flambda_handler.py)
 - **Execution:** The function runs every minute, scheduled using an AWS Cloud Watch Rule.
 - **Reading Events from Data Mesh Manager:** It reads all unprocessed [events from the Data Mesh Manager API](https://docs.datamesh-manager.com/events). 
 - **Sending Events to SQS:** These events are then sent to an SQS queue for further processing. 

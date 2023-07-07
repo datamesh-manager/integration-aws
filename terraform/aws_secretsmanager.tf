@@ -17,7 +17,7 @@ data "aws_iam_policy_document" "lambda_secretsmanager_access" {
   statement {
     principals {
       identifiers = [
-        aws_iam_role.process_feed_iam_role.arn,
+        aws_iam_role.poll_feed_iam_role.arn,
         aws_iam_role.process_events_iam_role.arn
       ]
       type = "AWS"

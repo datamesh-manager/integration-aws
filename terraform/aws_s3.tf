@@ -13,12 +13,12 @@ resource "aws_s3_bucket_versioning" "versioning_example" {
   }
 }
 
-# give access to s3 bucket to process_feed lambda to keep state of latest event id
+# give access to s3 bucket to poll_feed lambda to keep state of latest event id
 
-data "aws_iam_policy_document" "process_feed_s3_access" {
+data "aws_iam_policy_document" "poll_feed_s3_access" {
   statement {
     principals {
-      identifiers = [aws_iam_role.process_feed_iam_role.arn]
+      identifiers = [aws_iam_role.poll_feed_iam_role.arn]
       type        = "AWS"
     }
     effect    = "Allow"
@@ -28,7 +28,7 @@ data "aws_iam_policy_document" "process_feed_s3_access" {
 
   statement {
     principals {
-      identifiers = [aws_iam_role.process_feed_iam_role.arn]
+      identifiers = [aws_iam_role.poll_feed_iam_role.arn]
       type        = "AWS"
     }
     effect    = "Allow"
@@ -37,7 +37,7 @@ data "aws_iam_policy_document" "process_feed_s3_access" {
   }
 }
 
-resource "aws_s3_bucket_policy" "process_feed_s3_access" {
+resource "aws_s3_bucket_policy" "poll_feed_s3_access" {
   bucket = data.aws_s3_bucket.common_s3_bucket.id
-  policy = data.aws_iam_policy_document.process_feed_s3_access.json
+  policy = data.aws_iam_policy_document.poll_feed_s3_access.json
 }

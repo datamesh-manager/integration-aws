@@ -12,7 +12,7 @@ resource "aws_sqs_queue" "dmm_events_queue" {
 data "aws_iam_policy_document" "lambda_sqs_access" {
   statement {
     principals {
-      identifiers = [aws_iam_role.process_feed_iam_role.arn]
+      identifiers = [aws_iam_role.poll_feed_iam_role.arn]
       type        = "AWS"
     }
     actions   = ["sqs:SendMessage", "sqs:GetQueueUrl"]
