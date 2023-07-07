@@ -267,8 +267,8 @@ class EventHandler:
 
         # grant access to aws_resource to consumer
         policy_name = self._aws_grant_access(datacontract,
-                                            consumer_dataproduct,
-                                            provider_dataproduct)
+                                             consumer_dataproduct,
+                                             provider_dataproduct)
 
         self._dmm_client.patch_datacontract(datacontract_id, {
             'custom': {'aws-policy-name': policy_name}})
