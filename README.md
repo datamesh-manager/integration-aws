@@ -30,7 +30,7 @@ For a better understanding of how the integration works, see this simple archite
 │              │                                                                 │              │
 │              │                                                                 │              │
 │     ┌────────┴────────┐                ──────────── ──                ┌────────┴────────┐     │
-│     │    poll_feed    │     write     │ dmm_events │  │    trigger    │ process_events  │     │
+│     │    poll_feed    │     write     │ dmm_events │  │    trigger    │  handle_events  │     │
 │     │                 ├──────────────►│            │  ├──────────────►│                 │     │
 │     │[Lambda Function]│               │ [SQS Queue]│  │               │[Lambda Function]│     │
 │     └─────────────────┘                ──────────── ──                └────────┬────────┘     │
@@ -57,13 +57,13 @@ For a better understanding of how the integration works, see this simple archite
 - [adr-005-fifo-queue-in-sqs.md](adr%2Fadr-005-fifo-queue-in-sqs.md)
 
 ## Lambdas
-### [Process Feed](src%2Fpoll_feed%2Flambda_handler.py)
+### [Poll Feed](src%2Fpoll_feed%2Flambda_handler.py)
 - **Execution:** The function runs every minute, scheduled using an AWS Cloud Watch Rule.
 - **Reading Events from Data Mesh Manager:** It reads all unprocessed [events from the Data Mesh Manager API](https://docs.datamesh-manager.com/events). 
 - **Sending Events to SQS:** These events are then sent to an SQS queue for further processing. 
 - **Tracking Last Event ID:** To ensure proper resumption of processing, the function remembers the last event ID by storing it in an S3 object. This allows subsequent executions of the function to start processing from the correct feed position.
 
-### [Process Events](src%2Fprocess_events%2Flambda_handler.py)
+### [Handle Events](src%2Fhandle_events%2Flambda_handler.py)
 - **Execution:** The function is triggered by new events in the SQS queue.
 - **Filtering Relevant Events:** The function selectively processes events based on their type. It focuses on events of the type `DataContractActivatedEvent` and `DataContractDeactivatedEvent`.
 - **DataContractActivatedEvent:** When a `DataContractActivatedEvent` occurs, the function creates IAM policies. These policies allow access from a producing data product's output port to a consuming data product.

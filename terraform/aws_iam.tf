@@ -1,6 +1,6 @@
-# allow the process_events lambda to manage iam policies
+# allow the handle_events lambda to manage iam policies
 
-data "aws_iam_policy_document" "process_events_iam_control" {
+data "aws_iam_policy_document" "handle_events_iam_control" {
   statement {
     effect  = "Allow"
     actions = [
@@ -11,7 +11,7 @@ data "aws_iam_policy_document" "process_events_iam_control" {
   }
 }
 
-resource "aws_iam_role_policy" "process_events_iam_control" {
-  role   = aws_iam_role.process_events_iam_role.name
-  policy = data.aws_iam_policy_document.process_events_iam_control.json
+resource "aws_iam_role_policy" "handle_events_iam_control" {
+  role   = aws_iam_role.handle_events_iam_role.name
+  policy = data.aws_iam_policy_document.handle_events_iam_control.json
 }

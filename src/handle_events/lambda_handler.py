@@ -215,7 +215,7 @@ class EventHandler:
         self._aws_iam_manager = aws_iam_manager
 
     def handle(self, event: DMMEvent) -> None:
-        logging.info('Process event: {}'.format(event))
+        logging.info('Handle event: {}'.format(event))
         match event['type']:
             case 'com.datamesh-manager.events.DataContractDeactivatedEvent':
                 logging.info('Deactivate')
@@ -231,6 +231,8 @@ class EventHandler:
             consumer_dataproduct = self._dmm_client.get_dataproduct(
                 datacontract['consumer']['dataProductId'])
             self._aws_deactivated_event(datacontract, consumer_dataproduct)
+
+            logging.info('Deactivated: {}'.format(event['id']))
 
     def _activated_event(self, event: DMMEvent):
         datacontract_id = event['data']['id']

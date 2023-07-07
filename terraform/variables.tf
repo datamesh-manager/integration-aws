@@ -19,7 +19,7 @@ variable "dmm" {
 variable "versions" {
   type = object({
     poll_feed   = string
-    process_events = string
+    handle_events = string
   })
   description = "Lambda which should be deployed"
 }

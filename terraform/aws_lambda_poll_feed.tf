@@ -24,14 +24,14 @@ resource "aws_lambda_function" "poll_feed_lambda_function" {
 # trigger poll feed lambda every minute
 
 resource "aws_cloudwatch_event_rule" "poll_feed_schedule" {
-  name                = "schedule"
+  name                = "schedule_dmm_poll_feed"
   description         = "Schedule for Lambda Function"
   schedule_expression = "rate(1 minute)"
 }
 
 resource "aws_cloudwatch_event_target" "poll_feed_schedule_target" {
   rule      = aws_cloudwatch_event_rule.poll_feed_schedule.name
-  target_id = "processing_lambda"
+  target_id = "poll_feed_lambda"
   arn       = aws_lambda_function.poll_feed_lambda_function.arn
 }
 

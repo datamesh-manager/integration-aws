@@ -132,16 +132,16 @@ class Secrets:
 class FeedProcessor:
     def __init__(
         self,
-        last_process_event_id_repo: LastProcessedEventIdRepo,
+        last_processed_event_id_repo: LastProcessedEventIdRepo,
         dmm_events_client: DMMEventsClient,
         target_queue_client: TargetQueueClient
     ):
-        self._last_process_event_id_repo = last_process_event_id_repo
+        self._last_processed_event_id_repo = last_processed_event_id_repo
         self._dmm_events_client = dmm_events_client
         self._target_queue_client = target_queue_client
 
     def process_new_events(self) -> None:
-        last_event_id = self._last_process_event_id_repo.get_last_event_id()
+        last_event_id = self._last_processed_event_id_repo.get_last_event_id()
         logging.info('Starting from event {}'.format(last_event_id))
         while True:
             elements = self._dmm_events_client.get_events(last_event_id)
@@ -161,5 +161,5 @@ class FeedProcessor:
     def _process_element(self, element: DMMEvent, element_id: str) -> None:
         logging.info('Processing event {}'.format(element_id))
         self._target_queue_client.send_message(element, element_id)
-        self._last_process_event_id_repo.put_last_event_id(element_id)
+        self._last_processed_event_id_repo.put_last_event_id(element_id)
         logging.info('Processed event {}'.format(element_id))

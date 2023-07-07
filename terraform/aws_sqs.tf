@@ -22,7 +22,7 @@ data "aws_iam_policy_document" "lambda_sqs_access" {
 
   statement {
     principals {
-      identifiers = [aws_iam_role.process_events_iam_role.arn]
+      identifiers = [aws_iam_role.handle_events_iam_role.arn]
       type        = "AWS"
     }
     effect    = "Allow"
