@@ -4,12 +4,8 @@ data "aws_iam_policy_document" "process_events_iam_control" {
   statement {
     effect  = "Allow"
     actions = [
-      "iam:CreatePolicy",
-      "iam:CreatePolicyVersion",
-      "iam:TagPolicy",
-      "iam:AttachRolePolicy",
-      "iam:DeletePolicy",
-      "iam:DetachRolePolicy"
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy"
     ]
     resources = ["*"]
   }
