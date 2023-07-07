@@ -6,7 +6,7 @@ The infrastructure is set up by using Terraform.
 
 ## Limitations
 - We do not handle deleted data contracts. So make sure to deactivate data contracts before deleting them. Otherwise, permissions will be kept existent.
-- Not all kinds of output ports are supported at this point. Currently we support the following:
+- Not all kinds of output ports are supported at this point. Currently, we support the following:
   - S3 Buckets
 
 ## Architecture
@@ -74,6 +74,24 @@ For a better understanding of how the integration works, see this simple archite
 - [Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - [Python3.10](https://www.python.org/downloads/release/python-3100/)
+
+### Prepare your data products
+To allow the integration to work, your data products in Data Mesh manager must contain some metadata in their [custom fields](https://docs.datamesh-manager.com/dataproducts).
+
+A consuming data product requires information about its AWS IAM role (we use the notation of the [data product specification](https://github.com/datamesh-architecture/dataproduct-specification) here).
+```yaml
+custom:
+  aws-role-name: <PLACEHOLDER>
+```
+
+A providing data product requires information about AWS ARNs of its output ports. Which ARNs are required depends on the type of the output port.
+
+#### S3 Bucket
+```yaml
+outputPorts:
+  - custom:
+      aws-s3-bucket-arn: <PLACEHOLDER>
+```
 
 ### Deployment 
 - **Setup Terraform Variables:** An example of a minimum configuration can be found [here](terraform%2Fterraform.tfvars.template). Copy this file and name the copy `terraform.tfvars`. Set your credentials.
