@@ -1,9 +1,6 @@
 # Saving Metadata to Data Mesh Manager
 
-**Date:** [Date]  
-**Status:** [Proposed/Approved/Rejected/Implemented]  
-**Decision Maker:** [Name of Decision Maker]  
-**Decision Identifier:** [Unique identifier]
+**Date:** 2023-07-06
 
 ## Context
 
