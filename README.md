@@ -54,6 +54,7 @@ For a better understanding of how the integration works, see this simple archite
 - [adr-002-idempotent-event-processing.md](adr%2Fadr-002-idempotent-event-processing.md)
 - [adr-003-prefer-inline-policies-for-aws-iam.md](adr%2Fadr-003-prefer-inline-policies-for-aws-iam.md)
 - [adr-004-save-metadata-to-data-mesh-manager.md](adr%2Fadr-004-save-metadata-to-data-mesh-manager.md)
+- [adr-005-fifo-queue-in-sqs.md](adr%2Fadr-005-fifo-queue-in-sqs.md)
 
 ## Lambdas
 ### [Process Feed](src%2Fprocess_feed%2Flambda_handler.py)
