@@ -22,13 +22,10 @@ We have decided to save the metadata to the Data Mesh Manager. This decision is 
 
 ## Consequences
 
-**Positive Consequences:**
 - Ensures a complete state of objects by storing metadata in the Data Mesh Manager.
 - Facilitates auditing of metadata changes for enhanced security and accountability.
 - Eliminates the need for a dedicated database, simplifying the architecture.
 - Provides tagging functionality for better integration experience and organization.
-
-**Negative Consequences:**
 - Relies on the expected availability of the Data Mesh Manager's API for event processing.
 - May introduce dependencies on the Data Mesh Manager for metadata storage and access.
 - Requires careful design and implementation to ensure scalability and performance of the Data Mesh Manager.

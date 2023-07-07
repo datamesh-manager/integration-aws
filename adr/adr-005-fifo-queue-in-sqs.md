@@ -20,12 +20,9 @@ We have decided to use a FIFO queue in Amazon SQS for event buffering. This deci
 
 ## Consequences
 
-**Positive Consequences:**
 - Ensures reliable and ordered event delivery through FIFO queues in SQS.
 - Guarantees the processing order of events, maintaining the integrity of the event stream.
 - Provides scalability, resilience, and fault tolerance for handling large volumes of events.
 - Acts as a buffer to handle variations in event arrival rates, decoupling event generation from processing.
-
-**Negative Consequences:**
 - Introduces additional overhead and complexity in managing and monitoring the SQS FIFO queues.
 - Requires careful configuration to handle scaling and throttling appropriately.

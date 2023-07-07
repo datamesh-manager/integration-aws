@@ -20,13 +20,10 @@ We have decided to use Terraform and serverless technologies for the implementat
 
 ## Consequences
 
-**Positive Consequences:**
 - Simplified installation process, allowing organizations to quickly and easily deploy the open source product in their AWS accounts.
 - Improved scalability and elasticity, as serverless technologies handle automatic scaling based on demand.
 - Portability across different AWS accounts, reducing vendor lock-in concerns.
 - Leveraging AWS integrations for enhanced functionality and compatibility.
-
-**Negative Consequences:**
 - Organizations installing the open source product need to have familiarity with Terraform and serverless architectures.
 - Additional complexity in managing serverless-specific configurations and monitoring.
 - Organizations may need to invest time in understanding and adapting the product's installation process to their specific requirements.

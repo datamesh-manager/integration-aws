@@ -18,11 +18,8 @@ We have decided to implement an idempotent event processing mechanism for IAM po
 
 ## Consequences
 
-**Positive Consequences:**
 - Ensures the integrity of IAM policies by preventing the creation of duplicates and accidental removal of policies still in use.
 - Supports handling of duplicate events without causing harm or inconsistency in IAM policy management.
 - Maintains data consistency by enforcing idempotency during policy generation and deletion.
-
-**Negative Consequences:**
 - Requires careful implementation and testing of idempotent policy generation and deletion logic.
 - Increased complexity in handling event duplicates and policy dependencies.

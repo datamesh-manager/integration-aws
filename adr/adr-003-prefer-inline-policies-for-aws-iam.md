@@ -18,11 +18,8 @@ We have decided to prefer inline policies over customer managed policies for IAM
 
 ## Consequences
 
-**Positive Consequences:**
 - Simplifies IAM access control management by directly associating policies with IAM entities.
 - Provides granular and specific access control for each resource, aligning with the expected one-to-one relationship between output ports and consumers.
 - Avoids complexity associated with managing multiple customer managed policies.
-
-**Negative Consequences:**
 - May lead to increased duplication of policy definitions if similar policies need to be applied to multiple IAM entities.
 - Requires careful monitoring of the aggregated inline policy size to ensure it remains within the character limit.
