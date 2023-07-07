@@ -23,19 +23,19 @@ For a better understanding of how the integration works, see this simple archite
                                           │           │
 ┌─────────────────────────────────────────┼───────────┼─────────────────────────────────────────┐
 │                                         │           │                                         │
-│                                         │           │                                         │
-│                     pull events         │           │ read contract information               │
+│                                         │           │ 4. read contract information            │
+│                     1. pull events      │           │ 6. write policy information + tag       │
 │              ┌──────────────────────────┘           └──────────────────────────┐              │
 │              │                                                                 │              │
 │              │                                                                 │              │
 │              │                                                                 │              │
 │     ┌────────┴────────┐                ──────────── ──                ┌────────┴────────┐     │
-│     │    poll_feed    │     write     │ dmm_events │  │    trigger    │  handle_events  │     │
+│     │    poll_feed    │   2. write    │ dmm_events │  │  3. trigger   │  handle_events  │     │
 │     │                 ├──────────────►│            │  ├──────────────►│                 │     │
 │     │[Lambda Function]│               │ [SQS Queue]│  │               │[Lambda Function]│     │
 │     └─────────────────┘                ──────────── ──                └────────┬────────┘     │
 │                                                                                │              │
-│                                                                                │manage        │
+│                                                                                │5. manage     │
 │                                                                                │              │
 │                                                                                ▼              │
 │                                                                        ┌────────────────┐     │
