@@ -2,7 +2,12 @@
 
 This repository contains a complete setup, which allows you to integrate the [Data Mesh Manager](https://www.datamesh-manager.com/) into  an AWS account.
 It uses only serverless AWS functionality like Lambda, CloudWatch, S3, Secretsmanager and SQS.
-The infrastructure is set up by using [Terraform](https://www.terraform.io/).
+The infrastructure is set up by using Terraform.
+
+## Limitations
+- We do not handle deleted data contracts. So make sure to deactivate data contracts before deleting them. Otherwise, permissions will be kept existent.
+- Not all kinds of output ports are supported at this point. Currently we support the following:
+  - S3 Buckets
 
 ## Architecture
 For a better understanding of how the integration works, see this simple architecture diagram. Arrows show access direction.
