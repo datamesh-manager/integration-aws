@@ -278,9 +278,10 @@ class EventHandler:
         consumer_dataproduct: DataProduct,
         provider_dataproduct: DataProduct) -> str:
 
+        # implementation for s3 bucket
         datacontract_id = datacontract['info']['id']
         consumer_role_name = self._aws_consumer_role_name(consumer_dataproduct)
-        output_port_arn = self._aws_output_port_arn(
+        output_port_arn = self._aws_s3_bucket_output_port_arn(
             provider_dataproduct,
             datacontract['provider']['outputPortId'])
 
@@ -299,14 +300,14 @@ class EventHandler:
         return consumer_role_name
 
     @staticmethod
-    def _aws_output_port_arn(
+    def _aws_s3_bucket_output_port_arn(
         provider_dataproduct: DataProduct,
         provider_output_port_id: str) -> str:
         output_port = \
             next(op for op in provider_dataproduct['outputPorts']
                  if op['id'] == provider_output_port_id)
         try:
-            output_port_arn = output_port['custom']['aws-arn']
+            output_port_arn = output_port['custom']['aws-s3-bucket-arn']
         except KeyError as ke:
             raise RequiredCustomFieldNotSet(ke)
         return output_port_arn

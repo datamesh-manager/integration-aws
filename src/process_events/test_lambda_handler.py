@@ -411,7 +411,7 @@ class TestEventHandler(TestCase):
                     {
                         'id': self._output_port_id,
                         'custom': {
-                            'aws-arn': self._output_port_arn
+                            'aws-s3-bucket-arn': self._output_port_arn
                         }
                     }
                 ]
@@ -430,7 +430,7 @@ class TestEventHandler(TestCase):
                     {
                         'id': self._output_port_id,
                         'custom': {
-                            'aws-arn': self._output_port_arn
+                            'aws-s3-bucket-arn': self._output_port_arn
                         }
                     }
                 ]
