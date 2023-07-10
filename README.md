@@ -66,8 +66,8 @@ For a better understanding of how the integration works, see this simple archite
 ### [Handle Events](src%2Fhandle_events%2Flambda_handler.py)
 - **Execution:** The function is triggered by new events in the SQS queue.
 - **Filtering Relevant Events:** The function selectively processes events based on their type. It focuses on events of the type `DataContractActivatedEvent` and `DataContractDeactivatedEvent`.
-- **DataContractActivatedEvent:** When a `DataContractActivatedEvent` occurs, the function creates IAM policies. These policies allow access from a producing data product's output port to a consuming data product.
-- **DataContractDeactivatedEvent:** When a `DataContractDeactivatedEvent` occurs, the function removes the permissions from the consuming data product to access the output port of the producing data product. This will skip events, if no corresponding policy ist found.
+- **DataContractActivatedEvent:** When a `DataContractActivatedEvent` occurs, the function creates IAM policies. These policies allow access from a producing data product's output port to a consuming data product. The data contract in Data Mesh Manager is tagged with `aws-integration` and `aws-integration-active`.
+- **DataContractDeactivatedEvent:** When a `DataContractDeactivatedEvent` occurs, the function removes the permissions from the consuming data product to access the output port of the producing data product. This will skip events, if no corresponding policy ist found. The data contract in Data Mesh Manager is tagged with `aws-integration` and `aws-integration-inactive`.
 - **Extra Information:** To effectively process the events, the function may retrieve additional information from the Data Mesh Manager API. This information includes details about the data contract, data products involved, and the teams associated with them.
 
 ## Usage
