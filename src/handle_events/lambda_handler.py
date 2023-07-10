@@ -260,6 +260,10 @@ class EventHandler:
         consumer_role_name = self._aws_consumer_role_name(consumer_dataproduct)
         self._aws_iam_manager.remove_access(datacontract_id, consumer_role_name)
 
+        self._dmm_client.patch_datacontract(datacontract_id, {
+            'tags': ['aws-integration', 'aws-integration-inactive']
+        })
+
     def _aws_activated_event(self,
         datacontract: DataContract,
         consumer_dataproduct: DataProduct,
@@ -273,7 +277,9 @@ class EventHandler:
                                              provider_dataproduct)
 
         self._dmm_client.patch_datacontract(datacontract_id, {
-            'custom': {'aws-policy-name': policy_name}})
+            'custom': {'aws-policy-name': policy_name},
+            'tags': ['aws-integration', 'aws-integration-active']
+        })
 
     def _aws_grant_access(self,
         datacontract: DataContract,

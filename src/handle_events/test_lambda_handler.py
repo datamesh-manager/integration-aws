@@ -328,6 +328,13 @@ class TestEventHandler(TestCase):
             self._data_contract_id,
             self._consumer_role_name)
 
+        self._dmm_client.patch_datacontract.assert_called_with(
+            self._data_contract_id,
+            {
+                'tags': ['aws-integration', 'aws-integration-inactive']
+            }
+        )
+
     def test_handle__deactivated__contract_not_found(self) -> None:
         self._dmm_client.get_datacontract = \
             self._mock_get_data_contract
@@ -355,7 +362,8 @@ class TestEventHandler(TestCase):
         self._dmm_client.patch_datacontract.assert_called_with(
             self._data_contract_id,
             {
-                'custom': {'aws-policy-name': self._policy_name}
+                'custom': {'aws-policy-name': self._policy_name},
+                'tags': ['aws-integration', 'aws-integration-active']
             }
         )
 
