@@ -120,7 +120,7 @@ class AWSIAMManager:
                 RoleName=consumer_role_name,
                 PolicyName=self._policy_name(datacontract_id), )
         except ClientError as e:
-            if e.response['Error']['Code'] == 'NoSuchEntityException':
+            if e.response['Error']['Code'] == 'NoSuchEntity':
                 logging.warning('Policy for {} not found.'
                                 .format(datacontract_id))
             else:

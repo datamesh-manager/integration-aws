@@ -218,7 +218,7 @@ class TestAWSIAMManager(TestCase):
     def test_remove_access_not_found(self) -> None:
         self._iam_stubber.add_client_error(
             'delete_role_policy',
-            service_error_code='NoSuchEntityException',
+            service_error_code='NoSuchEntity',
             expected_params={
                 'RoleName': self._consumer_role_name,
                 'PolicyName': self._policy_name
