@@ -6,7 +6,7 @@ resource "aws_lambda_function" "handle_events_lambda_function" {
   function_name = "DMM_integration__handle_events"
   role          = aws_iam_role.handle_events_iam_role.arn
   handler       = "lambda_handler.lambda_handler"
-  timeout       = 120
+  timeout       = 30
   runtime       = "python3.10"
   architectures = ["arm64"]
 
