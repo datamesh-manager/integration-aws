@@ -7,7 +7,7 @@ import boto3
 from botocore.stub import Stubber
 
 from lambda_handler import Secrets, DMMClient, AWSIAMManager, EventHandler, \
-    UnsupportedServiceException, RequiredCustomFieldNotSet
+    UnsupportedOutputPortException, RequiredCustomFieldNotSet
 
 
 class TestDMMClient(TestCase):
@@ -230,10 +230,11 @@ class TestAWSIAMManager(TestCase):
                                         self._consumer_role_name)
 
     def test_grant_access_unsupported(self) -> None:
-        with self.assertRaises(UnsupportedServiceException):
+        with self.assertRaises(UnsupportedOutputPortException):
             self._iam_manager.grant_access(self._datacontract_id,
                                            self._consumer_role_name,
-                                           "aws:arn:iam:one:two:three")
+                                           'iam',
+                                           ['aws:arn:iam:one:two:three'])
 
     def test_grant_access_s3(self) -> None:
         self._iam_stubber.add_response(
@@ -267,7 +268,8 @@ class TestAWSIAMManager(TestCase):
 
         result = self._iam_manager.grant_access(self._datacontract_id,
                                                 self._consumer_role_name,
-                                                self._s3_output_port_arn)
+                                                's3',
+                                                [self._s3_output_port_arn])
 
         expected = 'DMM_Datacontract_{}'.format(self._datacontract_id)
         self.assertEqual(expected, result)
@@ -358,7 +360,8 @@ class TestEventHandler(TestCase):
         self._iam_manager.grant_access.assert_called_with(
             self._data_contract_id,
             self._consumer_role_name,
-            self._output_port_arn)
+            'service',
+            [self._output_port_arn])
         self._dmm_client.patch_datacontract.assert_called_with(
             self._data_contract_id,
             {

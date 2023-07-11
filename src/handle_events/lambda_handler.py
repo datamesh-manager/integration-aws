@@ -129,7 +129,8 @@ class AWSIAMManager:
     def grant_access(self,
         datacontract_id: str,
         consumer_role_name: str,
-        output_port_arn: str) -> str:
+        output_port_type: str,
+        output_port_arn: [str]) -> str:
         """Gives access to an AWS resource and returns the name of the
         corresponding policy
 
@@ -137,7 +138,9 @@ class AWSIAMManager:
         """
 
         policy_name = self._policy_name(datacontract_id)
-        policy_document = self._policy_document(output_port_arn)
+        policy_statements = self._policy_statements(output_port_type,
+                                                    output_port_arn)
+        policy_document = self._policy_document(policy_statements)
 
         self._iam.put_role_policy(
             RoleName=consumer_role_name,
@@ -152,26 +155,25 @@ class AWSIAMManager:
         return 'DMM_Datacontract_{}'.format(datacontract_id)
 
     @staticmethod
-    def _policy_document(output_port_arn):
+    def _policy_document(policy_statements: dict) -> dict:
         return {
             'Version': '2012-10-17',
-            'Statement': AWSIAMManager._policy_statements(output_port_arn)
+            'Statement': policy_statements
         }
 
     # create required policy statements based on the service defined in arn
     @staticmethod
-    def _policy_statements(output_port_arn):
-        output_port_service_name = output_port_arn.split(':')[2]
-        match output_port_service_name:
+    def _policy_statements(output_port_type: str, output_port_arn: [str]):
+        match output_port_type:
             case 's3':
                 policy_statements = [
-                    AWSIAMManager._s3_statement(output_port_arn)]
+                    AWSIAMManager._s3_statement(output_port_arn[0])]
             case _:
-                raise UnsupportedServiceException(output_port_service_name)
+                raise UnsupportedOutputPortException(output_port_type)
         return policy_statements
 
     @staticmethod
-    def _s3_statement(output_port_arn: str) -> dict:
+    def _s3_statement(bucket_arn: str) -> dict:
         return {
             'Effect': 'Allow',
             'Action': [
@@ -180,9 +182,25 @@ class AWSIAMManager:
                 's3:ListBucket'
             ],
             'Resource': [
-                output_port_arn,
-                '{}/*'.format(output_port_arn)
+                bucket_arn,
+                '{}/*'.format(bucket_arn)
             ]
+        }
+
+    @staticmethod
+    def _athena_statement(workgroup_arn: str) -> dict:
+        return {
+            'Effect': 'Allow',
+            'Action': ['athena:StartQueryExecution'],
+            'Resource': [workgroup_arn]
+        }
+
+    @staticmethod
+    def _glue_statement(arn: [str]) -> dict:
+        return {
+            'Effect': 'Allow',
+            'Action': ['glue:GetTable'],
+            'Resource': arn
         }
 
     @staticmethod
@@ -204,9 +222,9 @@ class AWSIAMManager:
         return datetime.today().strftime('%Y-%m-%d')
 
 
-class UnsupportedServiceException(Exception):
+class UnsupportedOutputPortException(Exception):
     def __init__(self, service_name):
-        super().__init__("Unsupported service: {}".format(service_name))
+        super().__init__("Unsupported output port: {}".format(service_name))
 
 
 class EventHandler:
@@ -293,10 +311,13 @@ class EventHandler:
             provider_dataproduct,
             datacontract['provider']['outputPortId'])
 
+        output_port_service_name = output_port_arn.split(':')[2]
+
         return self._aws_iam_manager.grant_access(
             datacontract_id,
             consumer_role_name,
-            output_port_arn)
+            output_port_service_name,
+            [output_port_arn])
 
     @staticmethod
     def _aws_consumer_role_name(consumer_dataproduct: DataProduct):
