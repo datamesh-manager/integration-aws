@@ -8,6 +8,7 @@ The infrastructure is set up by using Terraform.
 - We do not handle deleted data contracts. So make sure to deactivate data contracts before deleting them. Otherwise, permissions will be kept existent.
 - Not all kinds of output ports are supported at this point. Currently, we support the following:
   - S3 Buckets
+  - Glue Tables (accessed by using Athena)
 
 ## Architecture
 For a better understanding of how the integration works, see this simple architecture diagram. Arrows show access direction.
@@ -96,6 +97,10 @@ custom:
 A providing data product requires information about AWS ARNs of its output ports. Which ARNs are required depends on the type of the output port.
 We use the notation of the [data product specification](https://github.com/datamesh-architecture/dataproduct-specification) here.
 
+Your custom fields must always contain a field named `output-port-type`. See examples for valid options.
+
+You can configure the [ARNs](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html) of the required resources by adding custom fields starting with "aws" and ending with "arn". Actually all the text in between does not matter, but must be unique. We recommend to use the field names provided by the examples. 
+
 #### S3 Bucket
 ```yaml
 dataProductSpecification: 0.0.1
@@ -107,8 +112,29 @@ owner:
 outputPorts:
   - id: example_output_port_id
     custom:
+      output-port-type: s3_bucket
       aws-s3-bucket-arn: <S3_BUCKET_ARN>
 ```
+
+#### Glue Table
+```yaml
+dataProductSpecification: 0.0.1
+info:
+  id: example_provider_id
+  name: Example Provider Data Product
+owner:
+  teamId: example_team_id
+outputPorts:
+  - id: example_output_port_id
+    custom:
+      output-port-type: glue_table
+      aws-athena-workgroup-arn: <ATHENA_WORKGROUP_ARN>
+      aws-glue-catalog-arn: <AWS_GLUE_CATALOG_ARN>
+      aws-glue-database-arn: <AWS_GLUE_DATABASE_ARN>
+      aws-glue-table-arn: <AWS_GLUE_TABLE_ARN>
+      aws-s3-aws-s3-folder-arn: <S3_FOLDER_ARN>
+```
+
 
 ### Deployment 
 - **Setup Terraform Variables:** An example of a minimum configuration can be found [here](terraform%2Fterraform.tfvars.template). Copy this file and name the copy `terraform.tfvars`. Set your credentials.
