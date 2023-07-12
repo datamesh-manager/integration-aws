@@ -155,7 +155,7 @@ class AWSIAMManager:
         return 'DMM_Datacontract_{}'.format(datacontract_id)
 
     @staticmethod
-    def _policy_document(policy_statements: dict) -> dict:
+    def _policy_document(policy_statements: [dict]) -> dict:
         return {
             'Version': '2012-10-17',
             'Statement': policy_statements
@@ -165,15 +165,24 @@ class AWSIAMManager:
     @staticmethod
     def _policy_statements(output_port_type: str, output_port_arn: [str]):
         match output_port_type:
-            case 's3':
-                policy_statements = [
-                    AWSIAMManager._s3_statement(output_port_arn[0])]
+            case 's3_bucket':
+                policy_statements = AWSIAMManager._s3_bucket_statements(
+                    output_port_arn)
+            case 'glue_table':
+                policy_statements = AWSIAMManager._glue_table_statements(
+                    output_port_arn)
             case _:
                 raise UnsupportedOutputPortException(output_port_type)
         return policy_statements
 
     @staticmethod
-    def _s3_statement(bucket_arn: str) -> dict:
+    def _s3_bucket_statements(output_port_arn):
+        s3_arn = AWSIAMManager._filter_arn_by_service(output_port_arn, 's3')
+        policy_statements = [AWSIAMManager._s3_bucket_statement(s3_arn)]
+        return policy_statements
+
+    @staticmethod
+    def _s3_bucket_statement(bucket_arn: [str]) -> dict:
         return {
             'Effect': 'Allow',
             'Action': [
@@ -182,18 +191,42 @@ class AWSIAMManager:
                 's3:ListBucket'
             ],
             'Resource': [
-                bucket_arn,
-                '{}/*'.format(bucket_arn)
+                *bucket_arn,
+                *list(map(lambda a: '{}/*'.format(a), bucket_arn))
             ]
         }
 
     @staticmethod
-    def _athena_statement(workgroup_arn: str) -> dict:
-        return {
+    # access to glue tables by using an athena query
+    def _glue_table_statements(output_port_arn):
+        s3_arn = AWSIAMManager._filter_arn_by_service(output_port_arn, 's3')
+        glue_arn = AWSIAMManager._filter_arn_by_service(output_port_arn, 'glue')
+        athena_arn = AWSIAMManager._filter_arn_by_service(output_port_arn,
+                                                          'athena')
+
+        policy_statements = [
+            *AWSIAMManager._s3_folder_statements(s3_arn),
+            AWSIAMManager._glue_statement(glue_arn),
+            AWSIAMManager._athena_statement(athena_arn)]
+        return policy_statements
+
+    @staticmethod
+    def _s3_folder_statements(s3_arn):
+        bucket_statement = {
             'Effect': 'Allow',
-            'Action': ['athena:StartQueryExecution'],
-            'Resource': [workgroup_arn]
+            'Action': [
+                's3:ListBucket'
+            ],
+            'Resource': list(map(lambda a: a.split('/')[0], s3_arn))
         }
+        folder_statement = {
+            'Effect': 'Allow',
+            'Action': [
+                's3:GetObject'
+            ],
+            'Resource': list(map(lambda a: '{}/*'.format(a), s3_arn))
+        }
+        return bucket_statement, folder_statement
 
     @staticmethod
     def _glue_statement(arn: [str]) -> dict:
@@ -202,6 +235,19 @@ class AWSIAMManager:
             'Action': ['glue:GetTable'],
             'Resource': arn
         }
+
+    @staticmethod
+    def _athena_statement(workgroup_arn: [str]) -> dict:
+        return {
+            'Effect': 'Allow',
+            'Action': ['athena:StartQueryExecution'],
+            'Resource': workgroup_arn
+        }
+
+    @staticmethod
+    def _filter_arn_by_service(arn_list: [str], service_name: str) -> [str]:
+        return list(arn for arn in arn_list if
+                    arn.startswith('arn:aws:{}'.format(service_name)))
 
     @staticmethod
     def _managed_by_tag() -> dict[str, str]:
@@ -307,17 +353,29 @@ class EventHandler:
         # implementation for s3 bucket
         datacontract_id = datacontract['info']['id']
         consumer_role_name = self._aws_consumer_role_name(consumer_dataproduct)
-        output_port_arn = self._aws_s3_bucket_output_port_arn(
+        output_port = self._aws_s3_bucket_output_port(
             provider_dataproduct,
             datacontract['provider']['outputPortId'])
-
-        output_port_service_name = output_port_arn.split(':')[2]
 
         return self._aws_iam_manager.grant_access(
             datacontract_id,
             consumer_role_name,
-            output_port_service_name,
-            [output_port_arn])
+            self._output_port_type(output_port),
+            self._output_port_arn(output_port))
+
+    @staticmethod
+    def _output_port_type(output_port: dict) -> str:
+        try:
+            return output_port['custom']['output-port-type']
+        except KeyError as ke:
+            raise RequiredCustomFieldNotSet(ke)
+
+    @staticmethod
+    def _output_port_arn(output_port) -> [str]:
+        output_port_arn = list(
+            output_port['custom'][field] for field in output_port['custom'] if
+            field.startswith('aws') and field.endswith('arn'))
+        return output_port_arn
 
     @staticmethod
     def _aws_consumer_role_name(consumer_dataproduct: DataProduct):
@@ -329,17 +387,11 @@ class EventHandler:
         return consumer_role_name
 
     @staticmethod
-    def _aws_s3_bucket_output_port_arn(
+    def _aws_s3_bucket_output_port(
         provider_dataproduct: DataProduct,
-        provider_output_port_id: str) -> str:
-        output_port = \
-            next(op for op in provider_dataproduct['outputPorts']
-                 if op['id'] == provider_output_port_id)
-        try:
-            output_port_arn = output_port['custom']['aws-s3-bucket-arn']
-        except KeyError as ke:
-            raise RequiredCustomFieldNotSet(ke)
-        return output_port_arn
+        provider_output_port_id: str) -> dict:
+        return next(op for op in provider_dataproduct['outputPorts']
+                    if op['id'] == provider_output_port_id)
 
 
 class RequiredCustomFieldNotSet(Exception):

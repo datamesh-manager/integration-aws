@@ -187,8 +187,16 @@ class TestSecrets(TestCase):
 class TestAWSIAMManager(TestCase):
     _datacontract_id = '123-123-321'
     _consumer_role_name = 'hi_iam_a_consumer_role'
-    _s3_output_port_arn = 'arn:aws:s3:one:two:three'
     _policy_name = 'DMM_Datacontract_{}'.format(_datacontract_id)
+
+    _s3_output_port_bucket_arn = 'arn:aws:s3:one:two:three'
+    _s3_output_port_folder_arn = 'arn:aws:s3:one:two:three/folder'
+
+    _glue_output_port_catalog_arn = 'arn:aws:glue:catalog'
+    _glue_output_port_database_arn = 'arn:aws:glue:database/name'
+    _glue_output_port_table_arn = 'arn:aws:glue:table/name/name'
+
+    _athena_output_port_workgroup_arn = 'arn:aws:athena:workgroup/primary'
 
     def setUp(self) -> None:
         iam = boto3.client('iam')
@@ -236,7 +244,7 @@ class TestAWSIAMManager(TestCase):
                                            'iam',
                                            ['aws:arn:iam:one:two:three'])
 
-    def test_grant_access_s3(self) -> None:
+    def test_grant_access_s3_bucket(self) -> None:
         self._iam_stubber.add_response(
             'put_role_policy',
             {},
@@ -255,8 +263,8 @@ class TestAWSIAMManager(TestCase):
                                 's3:ListBucket'
                             ],
                             'Resource': [
-                                self._s3_output_port_arn,
-                                '{}/*'.format(self._s3_output_port_arn)
+                                self._s3_output_port_bucket_arn,
+                                '{}/*'.format(self._s3_output_port_bucket_arn)
                             ]
                         }
                     ]
@@ -268,8 +276,79 @@ class TestAWSIAMManager(TestCase):
 
         result = self._iam_manager.grant_access(self._datacontract_id,
                                                 self._consumer_role_name,
-                                                's3',
-                                                [self._s3_output_port_arn])
+                                                's3_bucket',
+                                                [self._s3_output_port_bucket_arn])
+
+        expected = 'DMM_Datacontract_{}'.format(self._datacontract_id)
+        self.assertEqual(expected, result)
+
+        self._iam_stubber.assert_no_pending_responses()
+
+    def test_grant_access_glue_table(self) -> None:
+        self._iam_stubber.add_response(
+            'put_role_policy',
+            {},
+            {
+                'RoleName': self._consumer_role_name,
+                'PolicyName': 'DMM_Datacontract_{}'.format(
+                    self._datacontract_id),
+                'PolicyDocument': json.dumps({
+                    'Version': '2012-10-17',
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': [
+                                's3:ListBucket'
+                            ],
+                            'Resource': [
+                                self._s3_output_port_bucket_arn
+                            ]
+                        },
+                        {
+                            'Effect': 'Allow',
+                            'Action': [
+                                's3:GetObject'
+                            ],
+                            'Resource': [
+                                '{}/*'.format(self._s3_output_port_folder_arn)
+                            ]
+                        },
+                        {
+                            'Effect': 'Allow',
+                            'Action': [
+                                'glue:GetTable'
+                            ],
+                            'Resource': [
+                                self._glue_output_port_catalog_arn,
+                                self._glue_output_port_database_arn,
+                                self._glue_output_port_table_arn
+                            ]
+                        },
+                        {
+                            'Effect': 'Allow',
+                            'Action': [
+                                'athena:StartQueryExecution'
+                            ],
+                            'Resource': [
+                                self._athena_output_port_workgroup_arn
+                            ]
+                        }
+                    ]
+                })
+            }
+        )
+
+        self._iam_stubber.activate()
+
+        result = self._iam_manager.grant_access(
+            self._datacontract_id,
+            self._consumer_role_name,
+            'glue_table',
+            [self._s3_output_port_folder_arn,
+             self._glue_output_port_catalog_arn,
+             self._glue_output_port_database_arn,
+             self._glue_output_port_table_arn,
+             self._athena_output_port_workgroup_arn])
 
         expected = 'DMM_Datacontract_{}'.format(self._datacontract_id)
         self.assertEqual(expected, result)
@@ -284,6 +363,7 @@ class TestEventHandler(TestCase):
     _consumer_dataproduct_id = 'asdf-123-asdf'
     _output_port_id = '456-6454-545'
     _output_port_arn = 'arn:aws:service:output:port'
+    _output_port_type = 'output_type'
     _provider_dataproduct_id = 'qwer-321-qwer'
     _policy_name = 'DMM_Datacontract_asdf-123-asdf'
 
@@ -360,7 +440,7 @@ class TestEventHandler(TestCase):
         self._iam_manager.grant_access.assert_called_with(
             self._data_contract_id,
             self._consumer_role_name,
-            'service',
+            self._output_port_type,
             [self._output_port_arn])
         self._dmm_client.patch_datacontract.assert_called_with(
             self._data_contract_id,
@@ -422,6 +502,7 @@ class TestEventHandler(TestCase):
                     {
                         'id': self._output_port_id,
                         'custom': {
+                            'output-port-type': self._output_port_type,
                             'aws-s3-bucket-arn': self._output_port_arn
                         }
                     }
