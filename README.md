@@ -79,19 +79,34 @@ For a better understanding of how the integration works, see this simple archite
 ### Prepare your data products
 To allow the integration to work, your data products in Data Mesh manager must contain some metadata in their [custom fields](https://docs.datamesh-manager.com/dataproducts).
 
-A consuming data product requires information about its AWS IAM role (we use the notation of the [data product specification](https://github.com/datamesh-architecture/dataproduct-specification) here).
+#### Consumer Data Product
+A consuming data product requires information about its AWS IAM role. We use the notation of the [data product specification](https://github.com/datamesh-architecture/dataproduct-specification) here.
 ```yaml
+dataProductSpecification: 0.0.1
+info:
+  id: example_consumer_id
+  name: Example Consumer Data Product
+owner:
+  teamId: example_team_id
 custom:
-  aws-role-name: <PLACEHOLDER>
+  aws-role-name: <AWS_ROLE_NAME>
 ```
 
+#### Provider Data Product
 A providing data product requires information about AWS ARNs of its output ports. Which ARNs are required depends on the type of the output port.
+We use the notation of the [data product specification](https://github.com/datamesh-architecture/dataproduct-specification) here.
 
 #### S3 Bucket
 ```yaml
+dataProductSpecification: 0.0.1
+info:
+  id: example_provider_id
+  name: Example Provider Data Product
+owner:
+  teamId: example_team_id
 outputPorts:
   - custom:
-      aws-s3-bucket-arn: <PLACEHOLDER>
+      aws-s3-bucket-arn: <S3_BUCKET_ARN>
 ```
 
 ### Deployment 
