@@ -105,7 +105,8 @@ info:
 owner:
   teamId: example_team_id
 outputPorts:
-  - custom:
+  - id: example_output_port_id
+    custom:
       aws-s3-bucket-arn: <S3_BUCKET_ARN>
 ```
 
