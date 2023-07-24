@@ -1,0 +1,75 @@
+MIT License
+
+Copyright (c) 2023 datamesh-manager
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Third-party Dependencies:
+
+1. terraform {Terraform} - Covered by the Mozilla Public License 2.0 (MPL-2.0)
+   - Terraform Registry: https://www.terraform.io/
+   - License: MPL-2.0 License (https://www.mozilla.org/en-US/MPL/2.0/)
+
+2. aws {Amazon Web Services Provider} - Covered by the Mozilla Public License 2.0 (MPL-2.0)
+   - Terraform Registry: https://registry.terraform.io/providers/hashicorp/aws/latest/docs
+   - License: MPL-2.0 License (https://www.mozilla.org/en-US/MPL/2.0/)
+
+3. boto3==1.26.153 - Covered by the Apache License 2.0
+   - GitHub Repository: https://github.com/boto/boto3
+   - License: Apache License 2.0 (https://github.com/boto/boto3/blob/develop/LICENSE)
+
+4. botocore==1.29.153 - Covered by the Apache License 2.0
+   - GitHub Repository: https://github.com/boto/botocore
+   - License: Apache License 2.0 (https://github.com/boto/botocore/blob/develop/LICENSE)
+
+5. certifi==2023.5.7 - Covered by the Mozilla Public License 2.0 (MPL-2.0)
+   - GitHub Repository: https://github.com/certifi/python-certifi
+   - License: Mozilla Public License 2.0 (MPL-2.0) (https://github.com/certifi/python-certifi/blob/main/LICENSE)
+
+6. charset-normalizer==3.1.0 - Covered by the MIT License
+   - GitHub Repository: https://github.com/Ousret/charset_normalizer
+   - License: MIT License (https://github.com/Ousret/charset_normalizer/blob/main/LICENSE)
+
+7. idna==3.4 - Covered by the BSD-4-Clause License
+   - GitHub Repository: https://github.com/kjd/idna
+   - License: BSD-4-Clause License (https://github.com/kjd/idna/blob/main/LICENSE)
+
+8. jmespath==1.0.1 - Covered by the MIT License
+   - GitHub Repository: https://github.com/jmespath/jmespath.py
+   - License: MIT License (https://github.com/jmespath/jmespath.py/blob/main/LICENSE)
+
+9. python-dateutil==2.8.2 - Covered by the Apache License 2.0
+   - GitHub Repository: https://github.com/dateutil/dateutil
+   - License: Apache License 2.0 (https://github.com/dateutil/dateutil/blob/main/LICENSE)
+
+10. requests==2.31.0 - Covered by the Apache License 2.0
+    - GitHub Repository: https://github.com/psf/requests
+    - License: Apache License 2.0 (https://github.com/psf/requests/blob/main/LICENSE)
+
+11. s3transfer==0.6.1 - Covered by the MIT License
+    - GitHub Repository: https://github.com/boto/s3transfer
+    - License: MIT License (https://github.com/boto/s3transfer/blob/develop/LICENSE)
+
+12. six==1.16.0 - Covered by the MIT License
+    - GitHub Repository: https://github.com/benjaminp/six
+    - License: MIT License (https://github.com/benjaminp/six/blob/main/LICENSE)
+
+13. urllib3==1.26.16 - Covered by the MIT License
+    - GitHub Repository: https://github.com/urllib3/urllib3
+    - License: MIT License (https://github.com/urllib3/urllib3/blob/main/LICENSE)

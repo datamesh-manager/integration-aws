@@ -140,3 +140,9 @@ outputPorts:
 - **Setup Terraform Variables:** An example of a minimum configuration can be found [here](terraform%2Fterraform.tfvars.template). Copy this file and name the copy `terraform.tfvars`. Set your credentials.
 - **Login Into AWS:** Login into your AWS account [through the cli](https://docs.aws.amazon.com/signin/latest/userguide/command-line-sign-in.html)
 - **Run The CICD Script:** [This script](cicd.sh) is an example of what a CICD pipeline would look like to run this on AWS. This script requires you to set a version for the lambda source code. E.g. `./cicd.sh v0.0.1`
+
+## Licenses
+
+This project is distributed under the MIT License. It includes various open-source dependencies, each governed by its respective license.
+
+For more details, please refer to the [LICENSES](LICENSES) file.
