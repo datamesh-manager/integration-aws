@@ -5,7 +5,7 @@ It uses only serverless AWS functionality like Lambda, CloudWatch, S3, Secretsma
 The infrastructure is set up by using Terraform.
 
 ## Limitations
-- We do not handle deleted data contracts. So make sure to deactivate data contracts before deleting them. Otherwise, permissions will be kept existent.
+- We do not handle deleted data usage agreements. So make sure to deactivate data usage agreements before deleting them. Otherwise, permissions will be kept existent.
 - Not all kinds of output ports are supported at this point. Currently, we support the following:
   - S3 Buckets
   - Glue Tables (accessed by using Athena)
@@ -24,7 +24,7 @@ For a better understanding of how the integration works, see this simple archite
                                           │           │
 ┌─────────────────────────────────────────┼───────────┼─────────────────────────────────────────┐
 │                                         │           │                                         │
-│                                         │           │ 4. read contract information            │
+│                                         │           │ 4. read usage agreement information     │
 │                     1. pull events      │           │ 6. write policy information + tag       │
 │              ┌──────────────────────────┘           └──────────────────────────┐              │
 │              │                                                                 │              │
@@ -66,10 +66,10 @@ For a better understanding of how the integration works, see this simple archite
 
 ### [Handle Events](src%2Fhandle_events%2Flambda_handler.py)
 - **Execution:** The function is triggered by new events in the SQS queue.
-- **Filtering Relevant Events:** The function selectively processes events based on their type. It focuses on events of the type `DataContractActivatedEvent` and `DataContractDeactivatedEvent`.
-- **DataContractActivatedEvent:** When a `DataContractActivatedEvent` occurs, the function creates IAM policies. These policies allow access from a producing data product's output port to a consuming data product. The data contract in Data Mesh Manager is tagged with `aws-integration` and `aws-integration-active`.
-- **DataContractDeactivatedEvent:** When a `DataContractDeactivatedEvent` occurs, the function removes the permissions from the consuming data product to access the output port of the producing data product. This will skip events, if no corresponding policy ist found. The data contract in Data Mesh Manager is tagged with `aws-integration` and `aws-integration-inactive`.
-- **Extra Information:** To effectively process the events, the function may retrieve additional information from the Data Mesh Manager API. This information includes details about the data contract, data products involved, and the teams associated with them.
+- **Filtering Relevant Events:** The function selectively processes events based on their type. It focuses on events of the type `DataUsageAgreementActivatedEvent` and `DataUsageAgreementDeactivatedEvent`.
+- **DataUsageAgreementActivatedEvent:** When a `DataUsageAgreementActivatedEvent` occurs, the function creates IAM policies. These policies allow access from a producing data product's output port to a consuming data product. The data usage agreement in Data Mesh Manager is tagged with `aws-integration` and `aws-integration-active`.
+- **DataUsageAgreementDeactivatedEvent:** When a `DataUsageAgreementDeactivatedEvent` occurs, the function removes the permissions from the consuming data product to access the output port of the producing data product. This will skip events, if no corresponding policy ist found. The data usage agreement in Data Mesh Manager is tagged with `aws-integration` and `aws-integration-inactive`.
+- **Extra Information:** To effectively process the events, the function may retrieve additional information from the Data Mesh Manager API. This information includes details about the data usage agreement, data products involved, and the teams associated with them.
 
 ## Usage
 ### Prerequisites

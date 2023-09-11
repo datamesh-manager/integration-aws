@@ -13,7 +13,7 @@ from lambda_handler import Secrets, DMMClient, AWSIAMManager, EventHandler, \
 class TestDMMClient(TestCase):
     _base_url = 'https://dmm-url.com'
     _api_key = 'supersecret'
-    _datacontract_id = '123'
+    _data_usage_agreement_id = '123'
     _dataproduct_id = '987'
 
     def setUp(self) -> None:
@@ -40,61 +40,61 @@ class TestDMMClient(TestCase):
         else:
             return TestDMMClient.MockResponse(sentinel.something, 500)
 
-    # get_datacontract
+    # get_data_usage_agreement
 
     @staticmethod
-    def mock_get_datacontract(**kwargs) -> MockResponse:
-        expected_url = '{base_url}/api/datacontracts/{id}'.format(
+    def mock_get_data_usage_agreement(**kwargs) -> MockResponse:
+        expected_url = '{base_url}/api/datausageagreements/{id}'.format(
             base_url=TestDMMClient._base_url,
-            id=TestDMMClient._datacontract_id)
+            id=TestDMMClient._data_usage_agreement_id)
 
         if kwargs['url'] == expected_url:
             return TestDMMClient.MockResponse(sentinel.expected, 200)
         else:
             return TestDMMClient.MockResponse(None, 200)
 
-    @patch('requests.get', Mock(side_effect=mock_get_datacontract))
-    def test_get_datacontract(self) -> None:
+    @patch('requests.get', Mock(side_effect=mock_get_data_usage_agreement))
+    def test_get_data_usage_agreement(self) -> None:
         self.assertEqual(sentinel.expected,
-                         self._client.get_datacontract(self._datacontract_id))
+                         self._client.get_data_usage_agreement(self._data_usage_agreement_id))
 
     @staticmethod
-    def mock_get_datacontract_not_found(**kwargs) -> MockResponse:
+    def mock_get_data_usage_agreement_not_found(**kwargs) -> MockResponse:
         return TestDMMClient.MockResponse(sentinel.something, 404)
 
-    @patch('requests.get', Mock(side_effect=mock_get_datacontract_not_found))
-    def test_get_datacontract_not_found(self) -> None:
+    @patch('requests.get', Mock(side_effect=mock_get_data_usage_agreement_not_found))
+    def test_get_data_usage_agreement_not_found(self) -> None:
         self.assertEqual(None,
-                         self._client.get_datacontract(self._datacontract_id))
+                         self._client.get_data_usage_agreement(self._data_usage_agreement_id))
 
     @staticmethod
-    def mock_get_datacontract_other_error() -> MockResponse:
+    def mock_get_data_usage_agreement_other_error() -> MockResponse:
         return TestDMMClient.MockResponse(sentinel.something, 500)
 
-    @patch('requests.get', Mock(side_effect=mock_get_datacontract_other_error))
-    def test_get_datacontract_other_error(self) -> None:
+    @patch('requests.get', Mock(side_effect=mock_get_data_usage_agreement_other_error))
+    def test_get_data_usage_agreement_other_error(self) -> None:
         with self.assertRaises(Exception):
-            self._client.get_datacontract(self._datacontract_id)
+            self._client.get_data_usage_agreement(self._data_usage_agreement_id)
 
     @patch('requests.get', Mock(side_effect=mock_get__api_key))
-    def test_get_datacontract_api_key(self) -> None:
+    def test_get_data_usage_agreement_api_key(self) -> None:
         self.assertEqual(sentinel.expected,
-                         self._client.get_datacontract(self._datacontract_id))
+                         self._client.get_data_usage_agreement(self._data_usage_agreement_id))
 
-    # patch_datacontract
+    # patch_data_usage_agreement
 
     @staticmethod
-    def mock_get_datacontract__patch(**kwargs) -> MockResponse:
+    def mock_get_data_usage_agreement__patch(**kwargs) -> MockResponse:
         return TestDMMClient.MockResponse({
             'key1': 'value1',
             'key2': 'value2'
         }, 200)
 
     @staticmethod
-    def mock_put_datacontract__patch(**kwargs) -> MockResponse:
-        expected_url = '{base_url}/api/datacontracts/{id}'.format(
+    def mock_put_data_usage_agreement__patch(**kwargs) -> MockResponse:
+        expected_url = '{base_url}/api/datausageagreements/{id}'.format(
             base_url=TestDMMClient._base_url,
-            id=TestDMMClient._datacontract_id)
+            id=TestDMMClient._data_usage_agreement_id)
 
         expected_body = {
             'key1': 'value1',
@@ -108,11 +108,11 @@ class TestDMMClient(TestCase):
 
         return TestDMMClient.MockResponse(None, 200)
 
-    @patch('requests.get', Mock(side_effect=mock_get_datacontract__patch))
-    @patch('requests.put', Mock(side_effect=mock_put_datacontract__patch))
-    def test_patch_datacontract(self) -> None:
+    @patch('requests.get', Mock(side_effect=mock_get_data_usage_agreement__patch))
+    @patch('requests.put', Mock(side_effect=mock_put_data_usage_agreement__patch))
+    def test_patch_data_usage_agreement(self) -> None:
         value = {'key2': 'value2_updated', 'key3': 'value3'}
-        self._client.patch_datacontract(self._datacontract_id, value)
+        self._client.patch_data_usage_agreement(self._data_usage_agreement_id, value)
 
     # get_dataproduct
 
@@ -185,9 +185,9 @@ class TestSecrets(TestCase):
 
 
 class TestAWSIAMManager(TestCase):
-    _datacontract_id = '123-123-321'
+    _data_usage_agreement_id = '123-123-321'
     _consumer_role_name = 'hi_iam_a_consumer_role'
-    _policy_name = 'DMM_Datacontract_{}'.format(_datacontract_id)
+    _policy_name = 'DMM_DataUsageAgreement_{}'.format(_data_usage_agreement_id)
 
     _s3_output_port_bucket_arn = 'arn:aws:s3:one:two:three'
     _s3_output_port_folder_arn = 'arn:aws:s3:one:two:three/folder'
@@ -218,7 +218,7 @@ class TestAWSIAMManager(TestCase):
         )
         self._iam_stubber.activate()
 
-        self._iam_manager.remove_access(self._datacontract_id,
+        self._iam_manager.remove_access(self._data_usage_agreement_id,
                                         self._consumer_role_name)
 
         self._iam_stubber.assert_no_pending_responses()
@@ -234,12 +234,12 @@ class TestAWSIAMManager(TestCase):
         )
         self._iam_stubber.activate()
 
-        self._iam_manager.remove_access(self._datacontract_id,
+        self._iam_manager.remove_access(self._data_usage_agreement_id,
                                         self._consumer_role_name)
 
     def test_grant_access_unsupported(self) -> None:
         with self.assertRaises(UnsupportedOutputPortException):
-            self._iam_manager.grant_access(self._datacontract_id,
+            self._iam_manager.grant_access(self._data_usage_agreement_id,
                                            self._consumer_role_name,
                                            'iam',
                                            ['aws:arn:iam:one:two:three'])
@@ -250,8 +250,8 @@ class TestAWSIAMManager(TestCase):
             {},
             {
                 'RoleName': self._consumer_role_name,
-                'PolicyName': 'DMM_Datacontract_{}'.format(
-                    self._datacontract_id),
+                'PolicyName': 'DMM_DataUsageAgreement_{}'.format(
+                    self._data_usage_agreement_id),
                 'PolicyDocument': json.dumps({
                     'Version': '2012-10-17',
                     'Statement': [
@@ -274,12 +274,12 @@ class TestAWSIAMManager(TestCase):
 
         self._iam_stubber.activate()
 
-        result = self._iam_manager.grant_access(self._datacontract_id,
+        result = self._iam_manager.grant_access(self._data_usage_agreement_id,
                                                 self._consumer_role_name,
                                                 's3_bucket',
                                                 [self._s3_output_port_bucket_arn])
 
-        expected = 'DMM_Datacontract_{}'.format(self._datacontract_id)
+        expected = 'DMM_DataUsageAgreement_{}'.format(self._data_usage_agreement_id)
         self.assertEqual(expected, result)
 
         self._iam_stubber.assert_no_pending_responses()
@@ -290,8 +290,8 @@ class TestAWSIAMManager(TestCase):
             {},
             {
                 'RoleName': self._consumer_role_name,
-                'PolicyName': 'DMM_Datacontract_{}'.format(
-                    self._datacontract_id),
+                'PolicyName': 'DMM_DataUsageAgreement_{}'.format(
+                    self._data_usage_agreement_id),
                 'PolicyDocument': json.dumps({
                     'Version': '2012-10-17',
                     'Statement': [
@@ -341,7 +341,7 @@ class TestAWSIAMManager(TestCase):
         self._iam_stubber.activate()
 
         result = self._iam_manager.grant_access(
-            self._datacontract_id,
+            self._data_usage_agreement_id,
             self._consumer_role_name,
             'glue_table',
             [self._s3_output_port_folder_arn,
@@ -350,7 +350,7 @@ class TestAWSIAMManager(TestCase):
              self._glue_output_port_table_arn,
              self._athena_output_port_workgroup_arn])
 
-        expected = 'DMM_Datacontract_{}'.format(self._datacontract_id)
+        expected = 'DMM_DataUsageAgreement_{}'.format(self._data_usage_agreement_id)
         self.assertEqual(expected, result)
 
         self._iam_stubber.assert_no_pending_responses()
@@ -358,19 +358,19 @@ class TestAWSIAMManager(TestCase):
 
 class TestEventHandler(TestCase):
     _event_id = '123-123-123-123'
-    _data_contract_id = '999-888-777'
+    _data_usage_agreement_id = '999-888-777'
     _consumer_role_name = 'consumer_role_123'
     _consumer_dataproduct_id = 'asdf-123-asdf'
     _output_port_id = '456-6454-545'
     _output_port_arn = 'arn:aws:service:output:port'
     _output_port_type = 'output_type'
     _provider_dataproduct_id = 'qwer-321-qwer'
-    _policy_name = 'DMM_Datacontract_asdf-123-asdf'
+    _policy_name = 'DMM_DataUsageAgreement_asdf-123-asdf'
 
     _activated_event = {
         'id': _event_id,
-        'type': 'com.datamesh-manager.events.DataContractActivatedEvent',
-        'data': {'id': _data_contract_id}
+        'type': 'com.datamesh-manager.events.DataUsageAgreementActivatedEvent',
+        'data': {'id': _data_usage_agreement_id}
     }
 
     @patch('lambda_handler.AWSIAMManager')
@@ -394,36 +394,36 @@ class TestEventHandler(TestCase):
         self._iam_manager.remove_access.assert_not_called()
 
     def test_handle__deactivated(self) -> None:
-        self._dmm_client.get_datacontract = \
-            self._mock_get_data_contract
+        self._dmm_client.get_data_usage_agreement = \
+            self._mock_get_data_usage_agreement
         self._dmm_client.get_dataproduct = \
             self._mock_get_dataproduct
 
         event = {
             'id': self._event_id,
-            'type': 'com.datamesh-manager.events.DataContractDeactivatedEvent',
-            'data': {'id': self._data_contract_id}
+            'type': 'com.datamesh-manager.events.DataUsageAgreementDeactivatedEvent',
+            'data': {'id': self._data_usage_agreement_id}
         }
         self._event_handler.handle(event)
 
         self._iam_manager.remove_access.assert_called_with(
-            self._data_contract_id,
+            self._data_usage_agreement_id,
             self._consumer_role_name)
 
-        self._dmm_client.patch_datacontract.assert_called_with(
-            self._data_contract_id,
+        self._dmm_client.patch_data_usage_agreement.assert_called_with(
+            self._data_usage_agreement_id,
             {
                 'tags': ['aws-integration', 'aws-integration-inactive']
             }
         )
 
     def test_handle__deactivated__contract_not_found(self) -> None:
-        self._dmm_client.get_datacontract = \
-            self._mock_get_data_contract
+        self._dmm_client.get_data_usage_agreement = \
+            self._mock_get_data_usage_agreement
 
         event = {
             'id': self._event_id,
-            'type': 'com.datamesh-manager.events.DataContractDeactivatedEvent',
+            'type': 'com.datamesh-manager.events.DataUsageAgreementDeactivatedEvent',
             'data': {'id': 'something_else'}
         }
         self._event_handler.handle(event)
@@ -431,19 +431,19 @@ class TestEventHandler(TestCase):
         self._iam_manager.remove_access.assert_not_called()
 
     def test_handle__activated(self) -> None:
-        self._dmm_client.get_datacontract = self._mock_get_data_contract
+        self._dmm_client.get_data_usage_agreement = self._mock_get_data_usage_agreement
         self._dmm_client.get_dataproduct = self._mock_get_dataproduct
         self._iam_manager.grant_access.return_value = self._policy_name
 
         self._event_handler.handle(self._activated_event)
 
         self._iam_manager.grant_access.assert_called_with(
-            self._data_contract_id,
+            self._data_usage_agreement_id,
             self._consumer_role_name,
             self._output_port_type,
             [self._output_port_arn])
-        self._dmm_client.patch_datacontract.assert_called_with(
-            self._data_contract_id,
+        self._dmm_client.patch_data_usage_agreement.assert_called_with(
+            self._data_usage_agreement_id,
             {
                 'custom': {'aws-policy-name': self._policy_name},
                 'tags': ['aws-integration', 'aws-integration-active']
@@ -451,32 +451,32 @@ class TestEventHandler(TestCase):
         )
 
     def test_handle__activated__consumer_role_not_set(self) -> None:
-        self._dmm_client.get_datacontract = self._mock_get_data_contract
+        self._dmm_client.get_data_usage_agreement = self._mock_get_data_usage_agreement
         self._dmm_client.get_dataproduct = self._mock_get_dataproduct_no_role
 
         with self.assertRaises(RequiredCustomFieldNotSet):
             self._event_handler.handle(self._activated_event)
 
     def test_handle__activated__provider_arn_not_set(self) -> None:
-        self._dmm_client.get_datacontract = self._mock_get_data_contract
+        self._dmm_client.get_data_usage_agreement = self._mock_get_data_usage_agreement
         self._dmm_client.get_dataproduct = self._mock_get_dataproduct_no_arn
 
         with self.assertRaises(RequiredCustomFieldNotSet):
             self._event_handler.handle(self._activated_event)
 
     def test_handle__activated__contract_not_found(self) -> None:
-        self._dmm_client.get_datacontract.return_value = None
+        self._dmm_client.get_data_usage_agreement.return_value = None
 
         self._event_handler.handle(self._activated_event)
 
         self._iam_manager.grant_access.assert_not_called()
-        self._dmm_client.patch_datacontract.assert_not_called()
+        self._dmm_client.patch_data_usage_agreement.assert_not_called()
 
-    def _mock_get_data_contract(self, datacontract_id: str):
-        if datacontract_id == self._data_contract_id:
+    def _mock_get_data_usage_agreement(self, data_usage_agreement_id: str):
+        if data_usage_agreement_id == self._data_usage_agreement_id:
             return {
                 'info': {
-                    'id': self._data_contract_id
+                    'id': self._data_usage_agreement_id
                 },
                 'consumer': {
                     'dataProductId': self._consumer_dataproduct_id

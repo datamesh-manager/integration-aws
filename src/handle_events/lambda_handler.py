@@ -8,7 +8,7 @@ import boto3
 import requests
 from botocore.exceptions import ClientError
 
-DataContract: TypeAlias = dict[str, dict[str, str]]
+DataUsageAgreement: TypeAlias = dict[str, dict[str, str]]
 Port: TypeAlias = dict[str, dict[str, str]]
 DataProduct: TypeAlias = dict[str, dict[str, str] | list[Port]]
 DMMEvent: TypeAlias = dict[str, str | dict]
@@ -47,24 +47,24 @@ class DMMClient:
         self._base_url = base_url
         self._api_key = api_key
 
-    def get_datacontract(self, datacontract_id: str) -> DataContract | None:
-        response = self._get(self._datacontract_url(datacontract_id))
+    def get_data_usage_agreement(self, data_usage_agreement_id: str) -> DataUsageAgreement | None:
+        response = self._get(self._data_usage_agreement_url(data_usage_agreement_id))
 
         if response.status_code == 404:
             logging.warning(
-                'No datacontract with id {}'.format(datacontract_id))
+                'No data_usage_agreement with id {}'.format(data_usage_agreement_id))
             return None
         else:
             response.raise_for_status()
             return response.json()
 
-    def patch_datacontract(self, datacontract_id: str, value: dict) -> None:
-        current = self.get_datacontract(datacontract_id)
-        self._put(self._datacontract_url(datacontract_id), {**current, **value})
+    def patch_data_usage_agreement(self, data_usage_agreement_id: str, value: dict) -> None:
+        current = self.get_data_usage_agreement(data_usage_agreement_id)
+        self._put(self._data_usage_agreement_url(data_usage_agreement_id), {**current, **value})
 
-    def _datacontract_url(self, datacontract_id) -> str:
-        return '{base_url}/api/datacontracts/{id}'.format(
-            base_url=self._base_url, id=datacontract_id)
+    def _data_usage_agreement_url(self, data_usage_agreement_id) -> str:
+        return '{base_url}/api/datausageagreements/{id}'.format(
+            base_url=self._base_url, id=data_usage_agreement_id)
 
     def get_dataproduct(self, dataproduct_id) -> DataProduct | None:
         response = self._get(self._dataproduct_url(dataproduct_id))
@@ -113,21 +113,21 @@ class AWSIAMManager:
         self._iam = iam
 
     def remove_access(self,
-        datacontract_id: str,
+        data_usage_agreement_id: str,
         consumer_role_name: str):
         try:
             self._iam.delete_role_policy(
                 RoleName=consumer_role_name,
-                PolicyName=self._policy_name(datacontract_id), )
+                PolicyName=self._policy_name(data_usage_agreement_id), )
         except ClientError as e:
             if e.response['Error']['Code'] == 'NoSuchEntity':
                 logging.warning('Policy for {} not found.'
-                                .format(datacontract_id))
+                                .format(data_usage_agreement_id))
             else:
                 raise e
 
     def grant_access(self,
-        datacontract_id: str,
+        data_usage_agreement_id: str,
         consumer_role_name: str,
         output_port_type: str,
         output_port_arn: [str]) -> str:
@@ -137,7 +137,7 @@ class AWSIAMManager:
         works only for S3 buckets at this point
         """
 
-        policy_name = self._policy_name(datacontract_id)
+        policy_name = self._policy_name(data_usage_agreement_id)
         policy_statements = self._policy_statements(output_port_type,
                                                     output_port_arn)
         policy_document = self._policy_document(policy_statements)
@@ -151,8 +151,8 @@ class AWSIAMManager:
         return policy_name
 
     @staticmethod
-    def _policy_name(datacontract_id: str) -> str:
-        return 'DMM_Datacontract_{}'.format(datacontract_id)
+    def _policy_name(data_usage_agreement_id: str) -> str:
+        return 'DMM_DataUsageAgreement_{}'.format(data_usage_agreement_id)
 
     @staticmethod
     def _policy_document(policy_statements: [dict]) -> dict:
@@ -257,10 +257,10 @@ class AWSIAMManager:
         }
 
     @staticmethod
-    def _contract_id_tag(datacontract_id: str) -> dict[str, str]:
+    def _contract_id_tag(data_usage_agreement_id: str) -> dict[str, str]:
         return {
             'Key': 'dmm-integration-contract',
-            'Value': datacontract_id
+            'Value': data_usage_agreement_id
         }
 
     @staticmethod
@@ -281,34 +281,34 @@ class EventHandler:
     def handle(self, event: DMMEvent) -> None:
         logging.info('Handle event: {}'.format(event))
         match event['type']:
-            case 'com.datamesh-manager.events.DataContractDeactivatedEvent':
+            case 'com.datamesh-manager.events.DataUsageAgreementDeactivatedEvent':
                 logging.info('Deactivate')
                 self._deactivated_event(event)
-            case 'com.datamesh-manager.events.DataContractActivatedEvent':
+            case 'com.datamesh-manager.events.DataUsageAgreementActivatedEvent':
                 logging.info('Activate')
                 self._activated_event(event)
 
     def _deactivated_event(self, event: DMMEvent):
-        datacontract = self._dmm_client.get_datacontract(event['data']['id'])
+        data_usage_agreement = self._dmm_client.get_data_usage_agreement(event['data']['id'])
         # aws resource specific code from here
-        if datacontract is not None:
+        if data_usage_agreement is not None:
             consumer_dataproduct = self._dmm_client.get_dataproduct(
-                datacontract['consumer']['dataProductId'])
-            self._aws_deactivated_event(datacontract, consumer_dataproduct)
+                data_usage_agreement['consumer']['dataProductId'])
+            self._aws_deactivated_event(data_usage_agreement, consumer_dataproduct)
 
             logging.info('Deactivated: {}'.format(event['id']))
 
     def _activated_event(self, event: DMMEvent):
-        datacontract_id = event['data']['id']
-        datacontract = self._dmm_client.get_datacontract(datacontract_id)
+        data_usage_agreement_id = event['data']['id']
+        data_usage_agreement = self._dmm_client.get_data_usage_agreement(data_usage_agreement_id)
 
-        if datacontract is not None:
+        if data_usage_agreement is not None:
             consumer_dataproduct = self._dmm_client.get_dataproduct(
-                datacontract['consumer']['dataProductId'])
+                data_usage_agreement['consumer']['dataProductId'])
             provider_dataproduct = self._dmm_client.get_dataproduct(
-                datacontract['provider']['dataProductId'])
+                data_usage_agreement['provider']['dataProductId'])
 
-            self._aws_activated_event(datacontract,
+            self._aws_activated_event(data_usage_agreement,
                                       consumer_dataproduct,
                                       provider_dataproduct)
 
@@ -317,48 +317,48 @@ class EventHandler:
     # aws resource specific code from here
 
     def _aws_deactivated_event(self,
-        datacontract: DataContract,
+        data_usage_agreement: DataUsageAgreement,
         consumer_dataproduct: DataProduct):
 
-        datacontract_id = datacontract['info']['id']
+        data_usage_agreement_id = data_usage_agreement['info']['id']
         consumer_role_name = self._aws_consumer_role_name(consumer_dataproduct)
-        self._aws_iam_manager.remove_access(datacontract_id, consumer_role_name)
+        self._aws_iam_manager.remove_access(data_usage_agreement_id, consumer_role_name)
 
-        self._dmm_client.patch_datacontract(datacontract_id, {
+        self._dmm_client.patch_data_usage_agreement(data_usage_agreement_id, {
             'tags': ['aws-integration', 'aws-integration-inactive']
         })
 
     def _aws_activated_event(self,
-        datacontract: DataContract,
+        data_usage_agreement: DataUsageAgreement,
         consumer_dataproduct: DataProduct,
         provider_dataproduct: DataProduct):
 
-        datacontract_id = datacontract['info']['id']
+        data_usage_agreement_id = data_usage_agreement['info']['id']
 
         # grant access to aws_resource to consumer
-        policy_name = self._aws_grant_access(datacontract,
+        policy_name = self._aws_grant_access(data_usage_agreement,
                                              consumer_dataproduct,
                                              provider_dataproduct)
 
-        self._dmm_client.patch_datacontract(datacontract_id, {
+        self._dmm_client.patch_data_usage_agreement(data_usage_agreement_id, {
             'custom': {'aws-policy-name': policy_name},
             'tags': ['aws-integration', 'aws-integration-active']
         })
 
     def _aws_grant_access(self,
-        datacontract: DataContract,
+        data_usage_agreement: DataUsageAgreement,
         consumer_dataproduct: DataProduct,
         provider_dataproduct: DataProduct) -> str:
 
         # implementation for s3 bucket
-        datacontract_id = datacontract['info']['id']
+        data_usage_agreement_id = data_usage_agreement['info']['id']
         consumer_role_name = self._aws_consumer_role_name(consumer_dataproduct)
         output_port = self._aws_s3_bucket_output_port(
             provider_dataproduct,
-            datacontract['provider']['outputPortId'])
+            data_usage_agreement['provider']['outputPortId'])
 
         return self._aws_iam_manager.grant_access(
-            datacontract_id,
+            data_usage_agreement_id,
             consumer_role_name,
             self._output_port_type(output_port),
             self._output_port_arn(output_port))
