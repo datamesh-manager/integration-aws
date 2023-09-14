@@ -26,24 +26,24 @@ For a better understanding of how the integration works, see this simple archite
 │                                         │           │                                         │
 │                                         │           │ 4. read usage agreement information     │
 │                     1. pull events      │           │ 6. write policy information + tag       │
-│              ┌──────────────────────────┘           └──────────────────────────┐              │
-│              │                                                                 │              │
-│              │                                                                 │              │
-│              │                                                                 │              │
-│     ┌────────┴────────┐                ──────────── ──                ┌────────┴────────┐     │
-│     │    poll_feed    │   2. write    │ dmm_events │  │  3. trigger   │  handle_events  │     │
-│     │                 ├──────────────►│            │  ├──────────────►│                 │     │
-│     │[Lambda Function]│               │ [SQS Queue]│  │               │[Lambda Function]│     │
-│     └─────────────────┘                ──────────── ──                └────────┬────────┘     │
-│                                                                                │              │
-│                                                                                │5. manage     │
-│                                                                                │              │
-│                                                                                ▼              │
-│                                                                        ┌────────────────┐     │
-│                                                                        │                │     │
-│                                                                        │  IAM Policies  │     │
-│                                                                        │                │     │
-│                                                                        └────────────────┘     │
+│              ┌──────────────────────────┘           └───────────────────────────┐             │
+│              │                                                                  │             │
+│              │                                                                  │             │
+│              │                                                                  │             │
+│     ┌────────┴────────┐                ──────────── ──                ┌─────────┴─────────┐   │
+│     │    poll_feed    │   2. write    │ dmm_events │  │  3. trigger   │manage_iam_policies│   │
+│     │                 ├──────────────►│            │  ├──────────────►│                   │   │
+│     │[Lambda Function]│               │ [SQS Queue]│  │               │ [Lambda Function] │   │
+│     └─────────────────┘                ──────────── ──                └─────────┬─────────┘   │
+│                                                                                 │             │
+│                                                                                 │5. manage    │
+│                                                                                 │             │
+│                                                                                 ▼             │
+│                                                                         ┌────────────────┐    │
+│                                                                         │                │    │
+│                                                                         │  IAM Policies  │    │
+│                                                                         │                │    │
+│                                                                         └────────────────┘    │
 │                                                                                               │
 │                                                                                               │
 │                                                                              [AWS Integration]│
@@ -64,7 +64,7 @@ For a better understanding of how the integration works, see this simple archite
 - **Sending Events to SQS:** These events are then sent to an SQS queue for further processing. 
 - **Tracking Last Event ID:** To ensure proper resumption of processing, the function remembers the last event ID by storing it in an S3 object. This allows subsequent executions of the function to start processing from the correct feed position.
 
-### [Handle Events](src%2Fhandle_events%2Flambda_handler.py)
+### [Manage IAM Policies](src%2Fmanage_iam_policies%2Flambda_handler.py)
 - **Execution:** The function is triggered by new events in the SQS queue.
 - **Filtering Relevant Events:** The function selectively processes events based on their type. It focuses on events of the type `DataUsageAgreementActivatedEvent` and `DataUsageAgreementDeactivatedEvent`.
 - **DataUsageAgreementActivatedEvent:** When a `DataUsageAgreementActivatedEvent` occurs, the function creates IAM policies. These policies allow access from a producing data product's output port to a consuming data product. The data usage agreement in Data Mesh Manager is tagged with `aws-integration` and `aws-integration-active`.

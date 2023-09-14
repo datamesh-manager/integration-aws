@@ -9,7 +9,7 @@ VERSION=$1
 WORKING_DIRECTORY=$(pwd)
 BUCKET_NAME="dmm-integration"
 
-declare -a LAMBDAS=("poll_feed" "handle_events")
+declare -a LAMBDAS=("poll_feed" "manage_iam_policies")
 
 function build {
   local name=$1
@@ -90,5 +90,5 @@ done
 # create or update infrastructure and application
 terraform -chdir=terraform init -upgrade
 terraform -chdir=terraform apply\
-  -var='versions={"poll_feed":"'"$VERSION"'","handle_events":"'"$VERSION"'"}'\
+  -var='versions={"poll_feed":"'"$VERSION"'","manage_iam_policies":"'"$VERSION"'"}'\
   -auto-approve
